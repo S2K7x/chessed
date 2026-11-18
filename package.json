@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test --trace off",
+    "proxy:deploy": "cd proxy && npx wrangler deploy",
     "openings": "node scripts/build-openings.mjs"
   },
   "dependencies": {

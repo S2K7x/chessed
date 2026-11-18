@@ -169,7 +169,7 @@ export function explainMove(input: ExplainInput): Explanation {
     switch (fact.kind) {
       case 'mate_allowed': {
         summary = `This allows a forced checkmate in ${fact.mateIn}.`;
-        details.push(`After ${formatLine(fact.line, 1)}, your king cannot escape: ${formatLine(fact.line)}.`);
+        details.push(`Your opponent forces it: ${formatLine(fact.line)}.`);
         lines.push({ label: 'The mating line', fen: input.fenAfter, moves: fact.line });
         arrows.push(...arrowOf(fact.line[0], 'threat'));
         lesson = LESSONS.mate_allowed;
@@ -260,7 +260,7 @@ export function explainMove(input: ExplainInput): Explanation {
   const out: Explanation = { title, summary, details, lines, arrows, lesson };
   arrows.push({ from: input.uci.slice(0, 2), to: input.uci.slice(2, 4), brush: 'played' });
   if (best && best.san !== san) {
-    out.better = { san: best.san, text: betterText(best.san, facts) };
+    out.better = { san: best.san, text: betterText(best.san, facts, a) };
     if (!lines.some((l) => l.fen === input.fenBefore)) {
       lines.push({ label: `Best line: ${best.san}`, fen: input.fenBefore, moves: bestLine.slice(0, 8) });
     }
@@ -269,9 +269,9 @@ export function explainMove(input: ExplainInput): Explanation {
   return out;
 }
 
-function betterText(bestSan: string, facts: Fact[]): string {
+function betterText(bestSan: string, facts: Fact[], a: Assessment): string {
   const missed = facts.find((f) => f.kind === 'missed_material' || f.kind === 'mate_missed');
-  if (missed?.kind === 'mate_missed') return `${bestSan} starts a forced mate.`;
-  if (missed?.kind === 'missed_material') return `${bestSan} wins material.`;
-  return `${bestSan} was the engine's choice and keeps the balance better.`;
+  if (missed?.kind === 'mate_missed') return `It starts a forced mate.`;
+  if (missed?.kind === 'missed_material') return `It wins material.`;
+  return `With ${bestSan} your winning chances stay around ${pct(a.winBefore)}, instead of ${pct(a.winAfter)}.`;
 }

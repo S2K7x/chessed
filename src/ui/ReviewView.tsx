@@ -1,0 +1,143 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useStore } from '../app/store';
+import type { Arrow } from '../core/explain';
+import { Board } from './Board';
+import { CoachPanel } from './CoachPanel';
+import { EvalBar } from './EvalBar';
+import { EvalGraph } from './EvalGraph';
+import { MoveList } from './MoveList';
+
+export function ReviewView() {
+  const { game, review, cursor, orientation, lineView, retry, liveWins, myColor } = useStore();
+  const { goTo, step, flip, closeLine, endRetry, submitAttempt } = useStore.getState();
+
+  const onKey = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'ArrowLeft') step(-1);
+      else if (e.key === 'ArrowRight') step(1);
+      else if (e.key === 'Home') goTo(0);
+      else if (e.key === 'End') goTo(Number.MAX_SAFE_INTEGER);
+      else if (e.key === 'f') flip();
+      else if (e.key === 'Escape') {
+        if (lineView) closeLine();
+        else if (retry) endRetry();
+      } else return;
+      e.preventDefault();
+    },
+    [lineView, retry, step, goTo, flip, closeLine, endRetry],
+  );
+  useEffect(() => {
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onKey]);
+
+  // On narrow screens the board sits above the coach panel: bring it into view
+  // when an exercise or a line starts, since the user must look at (or play on) it.
+  const boardArea = useRef<HTMLDivElement>(null);
+  const focusKey = retry ? `retry-${retry.moveIndex}` : lineView ? `line-${lineView.line.label}` : undefined;
+  useEffect(() => {
+    const el = boardArea.current;
+    if (!focusKey || !el) return;
+    const r = el.getBoundingClientRect();
+    if (r.top < 0 || r.bottom > window.innerHeight) {
+      el.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    }
+  }, [focusKey]);
+
+  const board = useMemo(() => {
+    if (!game) return undefined;
+    if (lineView) {
+      const { line, index } = lineView;
+      const played = line.moves[index - 1];
+      const next = line.moves[index];
+      const arrows: Arrow[] = next ? [{ from: next.uci.slice(0, 2), to: next.uci.slice(2, 4), brush: 'best' }] : [];
+      return { fen: played ? played.fenAfter : line.fen, lastMove: played?.uci, arrows, evalIndex: undefined };
+    }
+    if (retry) {
+      const m = game.moves[retry.moveIndex]!;
+      const prev = game.moves[retry.moveIndex - 1];
+      const arrows: Arrow[] = [];
+      const v = retry.verdict;
+      if (v && v.result !== 'solved' && v.refutation[0]) {
+        const r = v.refutation[0];
+        arrows.push({ from: r.uci.slice(0, 2), to: r.uci.slice(2, 4), brush: 'threat' });
+      }
+      return { fen: m.fenBefore, lastMove: prev?.uci, arrows, evalIndex: retry.moveIndex, interactive: retry.status === 'solving' };
+    }
+    const m = game.moves[cursor - 1];
+    const arrows = cursor > 0 ? review?.moves[cursor - 1]?.explanation.arrows.filter((a) => a.brush !== 'played') ?? [] : [];
+    return { fen: m ? m.fenAfter : game.startFen, lastMove: m?.uci, arrows, evalIndex: cursor };
+  }, [game, review, cursor, lineView, retry]);
+
+  const onMove = useCallback((uci: string) => void submitAttempt(uci), [submitAttempt]);
+
+  if (!game || !board) return null;
+  const evaluation = board.evalIndex !== undefined ? review?.evals[board.evalIndex] : undefined;
+  const top = orientation === 'white' ? game.black : game.white;
+  const bottom = orientation === 'white' ? game.white : game.black;
+  const topColor = orientation === 'white' ? 'black' : 'white';
+  const bottomColor = orientation;
+
+  return (
+    <div className="review">
+      <div className="review-board" ref={boardArea}>
+        <PlayerStrip name={top.name} elo={top.elo} color={topColor} accuracy={review?.accuracy[topColor]} isMe={myColor === topColor} />
+        <div className="board-row">
+          <EvalBar evaluation={evaluation} orientation={orientation} />
+          <Board fen={board.fen} orientation={orientation} lastMove={board.lastMove} arrows={board.arrows} onMove={'interactive' in board && board.interactive ? onMove : undefined} />
+        </div>
+        <PlayerStrip name={bottom.name} elo={bottom.elo} color={bottomColor} accuracy={review?.accuracy[bottomColor]} isMe={myColor === bottomColor} />
+        <div className="board-controls" role="toolbar" aria-label="Navigation">
+          <button onClick={() => goTo(0)} aria-label="First position">⏮</button>
+          <button onClick={() => step(-1)} aria-label="Previous move">◀</button>
+          <button onClick={() => step(1)} aria-label="Next move">▶</button>
+          <button onClick={() => goTo(Number.MAX_SAFE_INTEGER)} aria-label="Last position">⏭</button>
+          <button onClick={flip} aria-label="Flip board">⇅</button>
+        </div>
+        <EvalGraph wins={review?.whiteWins ?? liveWins} total={game.moves.length + 1} moves={review?.moves} cursor={retry ? retry.moveIndex : cursor} onSelect={goTo} />
+      </div>
+      <aside className="review-side">
+        <GameHeader />
+        <CoachPanel game={game} review={review} />
+        <MoveList game={game} moves={review?.moves} cursor={cursor} onSelect={goTo} />
+      </aside>
+    </div>
+  );
+}
+
+function PlayerStrip({ name, elo, color, accuracy, isMe }: { name: string; elo?: number; color: 'white' | 'black'; accuracy?: number; isMe: boolean }) {
+  return (
+    <div className="player">
+      <span className={`player-dot is-${color}`} aria-hidden />
+      <span className="player-name">{name}</span>
+      {elo ? <span className="muted">({elo})</span> : null}
+      {isMe ? <span className="tag">you</span> : null}
+      {accuracy !== undefined ? <span className="player-acc">{accuracy.toFixed(1)}</span> : null}
+    </div>
+  );
+}
+
+function GameHeader() {
+  const { game, review } = useStore();
+  if (!game) return null;
+  const bits = [game.result, game.timeControl?.speed, game.date, game.source !== 'pgn' ? game.source === 'lichess' ? 'Lichess' : 'Chess.com' : undefined].filter(Boolean);
+  const opening = review?.opening?.name ?? game.openingName;
+  return (
+    <header className="game-header">
+      <h1 className="game-title">
+        {game.white.name} <span className="muted">vs</span> {game.black.name}
+      </h1>
+      <p className="muted">
+        {bits.join(' · ')}
+        {opening ? ` · ${opening}` : ''}
+        {game.sourceUrl ? (
+          <>
+            {' · '}
+            <a href={game.sourceUrl} target="_blank" rel="noreferrer">source</a>
+          </>
+        ) : null}
+      </p>
+    </header>
+  );
+}

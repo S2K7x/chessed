@@ -11,6 +11,8 @@ describe('game links', () => {
     expect(parseGameUrl('https://lichess.org/abcdEFGH1234')).toEqual({ platform: 'lichess', id: 'abcdEFGH' });
     expect(parseGameUrl('https://lichess.org/abcdEFGH/black#32')).toEqual({ platform: 'lichess', id: 'abcdEFGH' });
     expect(parseGameUrl('https://lichess.org/game/export/abcdEFGH')).toEqual({ platform: 'lichess', id: 'abcdEFGH' });
+    // The Site header of Lichess PGN exports.
+    expect(parseGameUrl('https://lichess.org/game/HqjDTU4A')).toEqual({ platform: 'lichess', id: 'HqjDTU4A' });
     expect(parseGameUrl('https://lichess.org/@/someone')).toBeUndefined();
   });
   it('recognises Chess.com links', () => {

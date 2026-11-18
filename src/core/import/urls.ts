@@ -17,8 +17,10 @@ export function parseGameUrl(input: string): GameRef | undefined {
   const parts = url.pathname.split('/').filter(Boolean);
 
   if (host === 'lichess.org') {
-    // /{id8}, /{id8}{player4}, /{id8}/black, /game/export/{id8}, /embed/game/{id8}
-    const candidate = parts[0] === 'game' && parts[1] === 'export' ? parts[2] : parts[0] === 'embed' ? parts[parts[1] === 'game' ? 2 : 1] : parts[0];
+    // /{id8}, /{id8}{player4}, /{id8}/black, /game/{id8}, /game/export/{id8}, /embed/game/{id8}
+    let candidate = parts[0];
+    if (parts[0] === 'game') candidate = parts[1] === 'export' ? parts[2] : parts[1];
+    else if (parts[0] === 'embed') candidate = parts[1] === 'game' ? parts[2] : parts[1];
     if (!candidate) return undefined;
     const m = /^([a-zA-Z0-9]{8})(?:[a-zA-Z0-9]{4})?$/.exec(candidate);
     return m?.[1] ? { platform: 'lichess', id: m[1] } : undefined;
