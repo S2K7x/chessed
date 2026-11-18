@@ -54,7 +54,7 @@ describe('Stockfish integration', () => {
     expect(f).toMatchObject({ motif: 'fork' });
     if (f?.kind === 'material_lost') {
       expect(f.line[0]?.san).toBe('Nc7+');
-      expect(f.fork?.targets.map((t) => t.square).sort()).toEqual(['a8', 'e8']);
+      expect(f.pattern?.kind === 'fork' ? f.pattern.targets.map((t) => t.square).sort() : []).toEqual(['a8', 'e8']);
     }
   });
 
@@ -81,6 +81,11 @@ describe('Stockfish integration', () => {
 
     expect(byPly(1).assessment.classification).toBe('book');
     expect(review.opening?.name).toBeTruthy();
+
+    const nxe5 = byPly(9);
+    expect(nxe5.san).toBe('Nxe5');
+    expect(nxe5.assessment.classification).toBe('brilliant');
+    expect(nxe5.explanation.summary).toContain('queen on d1');
 
     const bxd1 = byPly(10);
     expect(bxd1.san).toBe('Bxd1');

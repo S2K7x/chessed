@@ -1,3 +1,4 @@
+import type { Sacrifice } from './facts/sacrifice';
 import {
   positionPovWinPercent,
   povScore,
@@ -11,7 +12,7 @@ import {
  * docs/CLASSIFICATION.md; bump CLASSIFIER_VERSION when a rule changes so that
  * stored reviews can be re-interpreted.
  */
-export const CLASSIFIER_VERSION = 'v1.0';
+export const CLASSIFIER_VERSION = 'v1.1';
 
 export type Classification =
   | 'brilliant'
@@ -49,6 +50,10 @@ export const STILL_WINNING_CP = 700;
 /** "Miss": failing to punish an opponent's mistake. */
 export const MISS_WIN_BEFORE = 80;
 export const MISS_WIN_AFTER = 65;
+/** "Brilliant": the position after the sacrifice is not bad for the mover... */
+export const BRILLIANT_MIN_WIN_AFTER = 45;
+/** ...and the mover was not already completely winning without it (second-best move). */
+export const BRILLIANT_MAX_ALTERNATIVE = 90;
 
 export type Reason =
   | 'single_legal_move'
@@ -56,6 +61,7 @@ export type Reason =
   | 'engine_top_move'
   | 'within_best_margin'
   | 'only_good_move'
+  | 'sound_sacrifice'
   | 'still_mating'
   | 'lost_forced_mate_still_winning'
   | 'already_decided'
@@ -77,6 +83,8 @@ export interface MoveContext {
   previousOpponentClass?: Classification;
   /** True when this move recaptures on the square where the opponent just captured. */
   isRecapture?: boolean;
+  /** A piece the move offers, when there is one (see facts/sacrifice.ts). */
+  sacrifice?: Sacrifice;
 }
 
 export interface Assessment {
@@ -90,6 +98,8 @@ export interface Assessment {
   bestUci?: string;
   /** Win % loss of the engine's second choice, when known. */
   secondBestLoss?: number;
+  /** The sacrifice that earned "Brilliant". */
+  sacrifice?: Sacrifice;
   reasons: Reason[];
   confidence: 'high' | 'low';
 }
@@ -227,6 +237,26 @@ export function classifyMove(ctx: MoveContext): Assessment {
   ) {
     reasons.push('only_good_move');
     a.classification = 'great';
+  }
+
+  // Best move other than the one played: how good the position was without the sacrifice.
+  const alternative = before.lines.find((l) => l.pv[0] !== uci);
+  const alternativeWin = alternative ? povWinPercent(alternative.score, color) : undefined;
+  if (
+    ctx.sacrifice &&
+    (a.classification === 'best' || a.classification === 'great' || a.classification === 'excellent') &&
+    winLoss <= THRESHOLDS.excellent &&
+    !lowConfidence &&
+    !ctx.isRecapture &&
+    winAfter >= BRILLIANT_MIN_WIN_AFTER &&
+    alternative !== undefined &&
+    alternativeWin !== undefined &&
+    alternative.bound === undefined &&
+    alternativeWin < BRILLIANT_MAX_ALTERNATIVE
+  ) {
+    reasons.push('sound_sacrifice');
+    a.classification = 'brilliant';
+    a.sacrifice = ctx.sacrifice;
   }
   return a;
 }

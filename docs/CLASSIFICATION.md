@@ -1,4 +1,4 @@
-# How moves are classified (classifier v1.0)
+# How moves are classified (classifier v1.1)
 
 Chess Coach uses its own transparent rules. They are inspired by public
 documentation from Chess.com and by Lichess' open-source code, but they do not
@@ -41,7 +41,29 @@ For each move, from the mover's point of view:
 | Blunder | loss > 20 |
 | Great move | The engine's top move, and the second-best move loses ≥ 10 more ("only good move"). Not given when the position was already ≥ 90%, for a simple recapture, or when the engine's result is not confident (depth < 10 or bound scores). |
 | Missed opportunity | The opponent's previous move was a Mistake or Blunder, the best move kept ≥ 80%, the played move drops below 65% and loses ≥ 5. A loss above 20 stays a Blunder. |
-| Brilliant | Not awarded yet (planned: a verified, sound piece sacrifice). |
+| Brilliant | A sound piece sacrifice (below), played with a loss ≤ 2, leaving the mover at ≥ 45%, when the best other move stays below 90% (the mover was not already completely winning without it). Not given for recaptures or with low engine confidence. |
+
+## What counts as a sacrifice
+
+Checked on the board, not guessed from the evaluation (`src/core/facts/sacrifice.ts`):
+
+1. after the move, one of the mover's knights, bishops, rooks or queens can be
+   won by the opponent (static exchange gain ≥ 2); pawns never count;
+2. the move created or increased that offer (the piece was not already hanging);
+3. net of what the move itself captured, the offer costs at least 2 points;
+4. the opponent can legally take it now, and after the cheapest capture the
+   mover cannot win the material straight back with a capture.
+
+Example: Legall's 5. Nxe5!! offers the queen on d1 (Bxd1 is a blunder that
+allows 6. Bxf7+ Ke7 7. Nd5#), and is labelled Brilliant.
+
+## Second pass
+
+After the first pass, positions around every inaccuracy, mistake, miss,
+blunder, great or brilliant move, and around low-confidence results, are
+evaluated again 4 plies deeper, and the review is rebuilt. With seven pieces or
+fewer, Lichess tablebases give exact results; early opening positions may use
+Lichess cloud evaluations when they are at least as deep as the local search.
 
 ## Special rules
 

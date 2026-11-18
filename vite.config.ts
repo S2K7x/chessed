@@ -2,11 +2,21 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// Cross-origin isolation enables SharedArrayBuffer, which the multi-threaded
+// Stockfish build needs. Production hosting sends the same headers
+// (public/_headers for Cloudflare Pages / Netlify).
+const isolation = {
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'require-corp',
+};
+
 export default defineConfig({
   plugins: [react()],
   // The opening book (≈730 kB, 86 kB gzipped) is its own lazily loaded chunk.
   build: { chunkSizeWarningLimit: 800 },
+  preview: { headers: isolation },
   server: {
+    headers: isolation,
     // Dev-only stand-in for the Cloudflare Worker proxy (proxy/worker.ts):
     // Chess.com's game callback endpoint sends no CORS headers.
     proxy: {

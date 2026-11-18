@@ -9,7 +9,15 @@ import { MoveList } from './MoveList';
 
 export function ReviewView() {
   const { game, review, cursor, orientation, lineView, retry, liveWins, myColor } = useStore();
-  const { goTo, step, flip, closeLine, endRetry, submitAttempt } = useStore.getState();
+  const { goTo, step, flip, closeLine, endRetry, submitAttempt, toggleAutoplay, stepLine } = useStore.getState();
+
+  // Autoplay of a line: one move every 900 ms.
+  const playing = lineView?.playing ?? false;
+  useEffect(() => {
+    if (!playing) return;
+    const id = window.setInterval(() => stepLine(1), 900);
+    return () => window.clearInterval(id);
+  }, [playing, stepLine]);
 
   const onKey = useCallback(
     (e: KeyboardEvent) => {
@@ -19,13 +27,14 @@ export function ReviewView() {
       else if (e.key === 'Home') goTo(0);
       else if (e.key === 'End') goTo(Number.MAX_SAFE_INTEGER);
       else if (e.key === 'f') flip();
+      else if (e.key === ' ' && lineView) toggleAutoplay();
       else if (e.key === 'Escape') {
         if (lineView) closeLine();
         else if (retry) endRetry();
       } else return;
       e.preventDefault();
     },
-    [lineView, retry, step, goTo, flip, closeLine, endRetry],
+    [lineView, retry, step, goTo, flip, closeLine, endRetry, toggleAutoplay],
   );
   useEffect(() => {
     window.addEventListener('keydown', onKey);

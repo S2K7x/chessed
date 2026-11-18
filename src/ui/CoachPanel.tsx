@@ -1,6 +1,6 @@
 import { ERROR_CLASSES } from '../core/classify';
 import { formatLine } from '../core/explain';
-import { classificationCounts, type GameReview, type MoveReview } from '../core/review';
+import { classificationCounts, formatClock, type GameReview, type MoveReview } from '../core/review';
 import type { Color } from '../core/eval';
 import type { Game } from '../core/game';
 import { useStore } from '../app/store';
@@ -19,7 +19,8 @@ function keyMoments(review: GameReview, myColor: Color | undefined): MoveReview[
 
 export function CoachPanel({ game, review }: { game: Game; review?: GameReview }) {
   const { cursor, progress, myColor, lineView, retry } = useStore();
-  const { goTo, showLine, stepLine, closeLine, startRetry, endRetry } = useStore.getState();
+  const { goTo, showLine, stepLine, closeLine, startRetry, endRetry, toggleAutoplay, openGame } = useStore.getState();
+  const { settings } = useStore();
 
   if (lineView) {
     const { line, index } = lineView;
@@ -37,6 +38,9 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
         <div className="coach-actions">
           <button onClick={() => stepLine(-1)} disabled={index === 0}>Back</button>
           <button className="primary" onClick={() => stepLine(1)} disabled={index >= line.moves.length}>Next move</button>
+          <button onClick={toggleAutoplay} aria-pressed={lineView.playing}>
+            {lineView.playing ? 'Pause' : index >= line.moves.length ? 'Replay' : 'Play'}
+          </button>
           <button onClick={closeLine}>Return to the game</button>
         </div>
       </section>
@@ -101,6 +105,12 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
     );
   }
 
+  const refining =
+    progress?.phase === 'refining' ? (
+      <p className="refining" role="status">
+        Checking the critical moments more deeply… {progress.done}/{progress.total}
+      </p>
+    ) : null;
   const moments = keyMoments(review, myColor);
   const indexOf = (m: MoveReview) => review.moves.indexOf(m);
   const nextMoment = moments.find((m) => indexOf(m) + 1 > cursor);
@@ -109,8 +119,18 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
   if (cursor === 0) {
     return (
       <section className="coach">
+        {refining}
         <p className="coach-kicker">Game summary</p>
         <h2 className="coach-title">{review.opening ? review.opening.name : 'Review ready'}</h2>
+        {review.summary?.opening && <p className="coach-detail">{review.summary.opening}</p>}
+        {(myColor ? [myColor] : (['white', 'black'] as const)).map((c) => (
+          <div key={c} className="coach-summary-text">
+            {!myColor && <p className="coach-detail"><strong>{c === 'white' ? game.white.name : game.black.name}</strong></p>}
+            {review.summary?.[c]?.map((line, i) => (
+              <p key={i} className="coach-detail">{line}</p>
+            ))}
+          </div>
+        ))}
         <div className="summary-grid">
           {(['white', 'black'] as const).map((c) => {
             const counts = classificationCounts(review, c);
@@ -137,7 +157,16 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
             </button>
           )}
           <button onClick={() => goTo(1)}>Go through every move</button>
+          {review.settings.multiPv < 3 && !progress && (
+            <button onClick={() => void openGame(game, { force: true, profile: 'deep' })}>Deep analysis</button>
+          )}
         </div>
+        <p className="coach-meta muted">
+          Stockfish depth {review.settings.depth}
+          {review.evals.some((e) => e.source === 'tablebase') ? ' · tablebase endgame' : ''}
+          {review.evals.some((e) => e.source === 'cloud') ? ' · Lichess cloud for the opening' : ''}
+          {settings.profile === 'deep' || review.settings.multiPv >= 3 ? ' · deep profile' : ''}
+        </p>
       </section>
     );
   }
@@ -146,10 +175,12 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
   const ex = m.explanation;
   return (
     <section className="coach" aria-live="polite">
+      {refining}
       <p className="coach-kicker">
         <ClassBadge c={m.assessment.classification} size="md" /> {CLASS_META[m.assessment.classification].label}
         {m.isKeyMoment ? <span className="tag">Key moment</span> : null}
         {m.errorKind ? <span className="tag">{m.errorKind}</span> : null}
+        {m.timeTrouble ? <span className="tag tag-warn">time trouble</span> : null}
       </p>
       <h2 className="coach-title">{ex.title}</h2>
       <p className="coach-summary">{ex.summary}</p>
@@ -181,6 +212,8 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
       <p className="coach-meta muted">
         Winning chances {Math.round(m.assessment.winBefore)}% → {Math.round(m.assessment.winAfter)}% for {sideName(m.color)}
         {m.assessment.confidence === 'low' ? ' · low engine confidence' : ''}
+        {m.timeSpentMs !== undefined ? ` · ${formatClock(m.timeSpentMs)} spent` : ''}
+        {m.clockMs !== undefined ? `, ${formatClock(m.clockMs)} left` : ''}
       </p>
     </section>
   );

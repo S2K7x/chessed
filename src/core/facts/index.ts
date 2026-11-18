@@ -1,7 +1,8 @@
 import { parseSquare } from 'chessops/util';
 import { materialBalance, positionFromFen, replayUci, type SanMove } from '../chess';
-import { povScore, type Color, type EngineLine, type PositionEval } from '../eval';
-import { attackersOf, forkTargets, pieceAt, staticExchange, type PieceAt } from './board';
+import { positionPovWinPercent, povScore, type Color, type EngineLine, type PositionEval } from '../eval';
+import { attackersOf, pieceAt, staticExchange, type PieceAt } from './board';
+import { isBackRankMate, isPinnedToKing, motifOf, type Motif } from './motifs';
 
 export type { PieceAt } from './board';
 
@@ -10,28 +11,33 @@ export type { PieceAt } from './board';
  * the engine's lines. Explanations (templates or a language model) may only
  * talk about what a fact contains: pieces, squares and moves listed here.
  */
+export type PatternKind = Motif['kind'];
+
 export type Fact =
-  | { kind: 'mate_allowed'; mateIn: number; line: SanMove[] }
-  | { kind: 'mate_missed'; mateIn: number; line: SanMove[] }
+  | { kind: 'mate_allowed'; mateIn: number; line: SanMove[]; backRank: boolean }
+  | { kind: 'mate_missed'; mateIn: number; line: SanMove[]; backRank: boolean }
   | {
       kind: 'material_lost';
       amount: number;
-      motif: 'moved_piece_unsafe' | 'piece_left_hanging' | 'removed_defender' | 'fork' | 'combination';
+      motif: PatternKind | 'pin' | 'moved_piece_unsafe' | 'piece_left_hanging' | 'removed_defender' | 'combination';
       /** The mover's first piece lost in the line. */
       piece?: PieceAt;
       /** For `removed_defender`: the moved piece that was defending. */
       defender?: PieceAt;
-      fork?: { by: PieceAt; targets: PieceAt[] };
+      /** The tactical pattern of the opponent's reply, when there is one. */
+      pattern?: Motif;
       line: SanMove[];
     }
   | {
       kind: 'missed_material';
       amount: number;
-      motif: 'free_capture' | 'fork' | 'combination';
+      motif: PatternKind | 'free_capture' | 'combination';
       piece?: PieceAt;
-      fork?: { by: PieceAt; targets: PieceAt[] };
+      pattern?: Motif;
       line: SanMove[];
     }
+  | { kind: 'endgame_thrown'; from: 'win' | 'draw'; to: 'draw' | 'loss'; bestLine: SanMove[] }
+  | { kind: 'castling_lost' }
   | { kind: 'eval_drop'; line: SanMove[]; bestLine: SanMove[] };
 
 /** Plies of a line used to measure material: enough for an exchange or a fork. */
@@ -95,19 +101,33 @@ export function detectFacts(ctx: FactContext): Fact[] {
   const bestUci = bestLine?.pv[0];
   const playedBest = bestUci === ctx.uci;
 
+  // Tablebase verdicts are exact: a won or drawn endgame thrown away.
+  if (before.source === 'tablebase' && after.source === 'tablebase' && !playedBest) {
+    const wb = positionPovWinPercent(before, color);
+    const wa = positionPovWinPercent(after, color);
+    const verdict = (w: number) => (w >= 90 ? 'win' : w <= 10 ? 'loss' : 'draw');
+    const from = verdict(wb);
+    const to = verdict(wa);
+    if ((from === 'win' && to !== 'win') || (from === 'draw' && to === 'loss')) {
+      facts.push({ kind: 'endgame_thrown', from, to, bestLine: bestLine ? replayUci(ctx.fenBefore, bestLine.pv, 1) : [] });
+    }
+  }
+
   // Mate the mover now allows.
   const oppMate = mateFor(punishLine, color);
   const hadOppMate = mateFor(bestLine, color);
   if (punishLine && oppMate !== undefined && oppMate < 0 && !(hadOppMate !== undefined && hadOppMate < 0)) {
     const n = -oppMate;
-    facts.push({ kind: 'mate_allowed', mateIn: n, line: replayUci(ctx.fenAfter, punishLine.pv, 2 * n - 1) });
+    const line = replayUci(ctx.fenAfter, punishLine.pv, 2 * n - 1);
+    facts.push({ kind: 'mate_allowed', mateIn: n, line, backRank: isBackRankMate(line) });
   }
 
   // Mate the mover had and no longer has.
   const ownMate = mateFor(bestLine, color);
   const stillMate = after.terminal === 'checkmate' || ((mateFor(punishLine, color) ?? 0) > 0);
   if (bestLine && ownMate !== undefined && ownMate > 0 && !playedBest && !stillMate) {
-    facts.push({ kind: 'mate_missed', mateIn: ownMate, line: replayUci(ctx.fenBefore, bestLine.pv, 2 * ownMate - 1) });
+    const line = replayUci(ctx.fenBefore, bestLine.pv, 2 * ownMate - 1);
+    facts.push({ kind: 'mate_missed', mateIn: ownMate, line, backRank: isBackRankMate(line) });
   }
 
   // Material the opponent wins after the move.
@@ -126,7 +146,9 @@ export function detectFacts(ctx: FactContext): Fact[] {
     }
   }
 
-  if (facts.length === 0 && bestLine && punishLine && !playedBest) {
+  if (lostCastling(ctx)) facts.push({ kind: 'castling_lost' });
+
+  if (!facts.some((f) => f.kind !== 'castling_lost') && bestLine && punishLine && !playedBest) {
     facts.push({
       kind: 'eval_drop',
       line: replayUci(ctx.fenAfter, punishLine.pv, 6),
@@ -143,21 +165,20 @@ function materialLostFact(ctx: FactContext, lost: LineMaterial): Fact {
   const base = { kind: 'material_lost' as const, amount, line };
   if (!reply) return { ...base, motif: 'combination' };
 
-  // A fork by the reply: the moved piece attacks two worthwhile targets.
-  const afterReply = positionFromFen(reply.fenAfter);
-  const replyTo = parseSquare(reply.uci.slice(2, 4))!;
-  const targets = forkTargets(afterReply, replyTo);
-  const by = pieceAt(afterReply.board, replyTo);
-  if (by && targets.length >= 2) {
-    return { ...base, motif: 'fork', fork: { by, targets } };
-  }
+  // A tactical pattern in the opponent's reply (double check, discovered attack, fork, skewer).
+  const pattern = motifOf(reply);
+  if (pattern) return { ...base, motif: pattern.kind, pattern };
 
   // The first of the mover's pieces captured in the line.
   const firstCapture = line.find((m, i) => i % 2 === 0 && m.san.includes('x'));
   if (!firstCapture) return { ...base, motif: 'combination' };
   const capturedSq = parseSquare(firstCapture.uci.slice(2, 4))!;
-  const piece = pieceAt(positionFromFen(firstCapture.fenBefore).board, capturedSq);
+  const boardAtCapture = positionFromFen(firstCapture.fenBefore).board;
+  const piece = pieceAt(boardAtCapture, capturedSq);
   const withPiece = piece ? { piece } : {};
+  if (piece && piece.role !== 'pawn' && isPinnedToKing(boardAtCapture, capturedSq)) {
+    return { ...base, motif: 'pin', ...withPiece };
+  }
   if (firstCapture !== reply) return { ...base, motif: 'combination', ...withPiece };
 
   const movedTo = parseSquare(ctx.uci.slice(2, 4))!;
@@ -182,15 +203,11 @@ function missedMaterialFact(fenBefore: string, won: LineMaterial): Fact {
   const first = line[0];
   const base = { kind: 'missed_material' as const, amount: won.delta, line };
   if (!first) return { ...base, motif: 'combination' };
-  const pos = positionFromFen(first.fenAfter);
-  const to = parseSquare(first.uci.slice(2, 4))!;
-  const targets = forkTargets(pos, to);
-  const by = pieceAt(pos.board, to);
-  if (by && targets.length >= 2 && !first.san.includes('x')) {
-    return { ...base, motif: 'fork', fork: { by, targets } };
-  }
+  const pattern = motifOf(first);
+  if (pattern) return { ...base, motif: pattern.kind, pattern };
   if (first.san.includes('x')) {
     const posBefore = positionFromFen(fenBefore);
+    const to = parseSquare(first.uci.slice(2, 4))!;
     const piece = pieceAt(posBefore.board, to);
     // The capture itself wins material by static exchange: the piece was en prise.
     if (piece && staticExchange(posBefore, to, posBefore.turn) >= MATERIAL_THRESHOLD) {
@@ -199,4 +216,15 @@ function missedMaterialFact(fenBefore: string, won: LineMaterial): Fact {
     return { ...base, motif: 'combination', ...(piece ? { piece } : {}) };
   }
   return { ...base, motif: 'combination' };
+}
+
+/** A king move (not castling) that gives up the right to castle. */
+function lostCastling(ctx: FactContext): boolean {
+  const before = positionFromFen(ctx.fenBefore);
+  const from = parseSquare(ctx.uci.slice(0, 2))!;
+  if (before.board.get(from)?.role !== 'king') return false;
+  const to = parseSquare(ctx.uci.slice(2, 4))!;
+  if (Math.abs((from & 7) - (to & 7)) === 2 || before.board.get(to)?.role === 'rook') return false;
+  const rank = ctx.color === 'white' ? 0 : 7;
+  return [...before.castles.castlingRights].some((sq) => sq >> 3 === rank);
 }

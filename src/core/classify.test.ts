@@ -134,3 +134,34 @@ describe('classifyMove — mates', () => {
     expect(['best', 'excellent']).toContain(a.classification);
   });
 });
+
+describe('classifyMove — Brilliant', () => {
+  const sacrifice = { piece: { role: 'queen' as const, color: 'white' as const, square: 'd1' }, investment: 5 };
+  const after = evalOf(AFTER_E4, [{ score: { cp: -150 }, pv: ['e7e5'] }]);
+
+  it('needs a verified sacrifice that keeps the position sound', () => {
+    const before = evalOf(START, [{ score: { cp: 150 }, pv: ['e2e4'] }, { score: { cp: 60 }, pv: ['d2d4'] }]);
+    const a = classifyMove(white({ uci: 'e2e4', before, after, sacrifice }));
+    expect(a.classification).toBe('brilliant');
+    expect(a.reasons).toContain('sound_sacrifice');
+    expect(classifyMove(white({ uci: 'e2e4', before, after })).classification).toBe('best');
+  });
+
+  it('is not given when the alternative was already completely winning', () => {
+    const before = evalOf(START, [{ score: { cp: 900 }, pv: ['e2e4'] }, { score: { cp: 700 }, pv: ['d2d4'] }]);
+    const a = classifyMove(white({ uci: 'e2e4', before, after: evalOf(AFTER_E4, [{ score: { cp: -900 }, pv: ['e7e5'] }]), sacrifice }));
+    expect(a.classification).not.toBe('brilliant');
+  });
+
+  it('is not given when the sacrifice leaves a bad position', () => {
+    const before = evalOf(START, [{ score: { cp: -150 }, pv: ['e2e4'] }, { score: { cp: -400 }, pv: ['d2d4'] }]);
+    const a = classifyMove(white({ uci: 'e2e4', before, after: evalOf(AFTER_E4, [{ score: { cp: 150 }, pv: ['e7e5'] }]), sacrifice }));
+    expect(a.classification).not.toBe('brilliant');
+  });
+
+  it('is not given for a clear loss of material', () => {
+    const before = evalOf(START, [{ score: { cp: 150 }, pv: ['e2e4'] }, { score: { cp: 60 }, pv: ['d2d4'] }]);
+    const a = classifyMove(white({ uci: 'g2g4', before, after: evalOf(AFTER_E4, [{ score: { cp: 200 }, pv: ['e7e5'] }]), sacrifice }));
+    expect(a.classification).toBe('blunder');
+  });
+});

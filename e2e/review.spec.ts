@@ -24,6 +24,21 @@ test('imports a PGN, reviews it and practises the blunder', async ({ page }, inf
   await expect(page.getByText('Game summary')).toBeVisible({ timeout: 90_000 });
   await page.screenshot({ path: `test-results/summary-${info.project.name}.png`, fullPage: true });
 
+  // The deeper second pass runs after the first review; wait for it to finish.
+  await expect(page.locator('.refining')).toHaveCount(0, { timeout: 90_000 });
+  await expect(page.locator('.coach')).toContainText('left known theory');
+  await expect(page.locator('.coach-summary-text').last()).toContainText('Theme to work on: king safety');
+
+  // The engine runs multi-threaded when the page is cross-origin isolated.
+  expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
+
+  // 5. Nxe5 is Legall's famous queen sacrifice.
+  const nxe5 = page.locator('.movelist-cell', { hasText: 'Nxe5' });
+  await expect(nxe5.locator('.badge')).toHaveAttribute('data-class', 'brilliant');
+  await nxe5.click();
+  await expect(page.locator('.coach-summary')).toContainText('queen on d1');
+  await page.screenshot({ path: `test-results/brilliant-${info.project.name}.png`, fullPage: true });
+
   // 5...Bxd1 is the blunder that allows mate in two.
   const bxd1 = page.locator('.movelist-cell', { hasText: 'Bxd1' });
   await expect(bxd1.locator('.badge')).toHaveAttribute('data-class', 'blunder');
@@ -34,6 +49,8 @@ test('imports a PGN, reviews it and practises the blunder', async ({ page }, inf
   // Replay the line, then retry the move.
   await page.getByRole('button', { name: 'The mating line' }).click();
   await expect(page.getByText('Exploring a line')).toBeVisible();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Replay' })).toBeVisible({ timeout: 10_000 });
   await page.getByRole('button', { name: 'Return to the game' }).click();
 
   await page.getByRole('button', { name: 'Retry this move' }).click();

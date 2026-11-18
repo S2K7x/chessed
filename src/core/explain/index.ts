@@ -2,6 +2,7 @@ import type { SanMove } from '../chess';
 import type { Assessment, Classification } from '../classify';
 import type { Color } from '../eval';
 import type { Fact, PieceAt } from '../facts';
+import type { Motif } from '../facts/motifs';
 
 /**
  * Template explanations. Every piece, square and move mentioned here comes
@@ -79,6 +80,15 @@ const LESSONS = {
   mate_missed: 'Checks, captures, threats: look at all your checks first, every move.',
   free_capture: 'Look at every capture available to you. A piece attacked more often than it is defended can be won.',
   fork_missed: 'Look for moves that attack two targets at once: a fork wins material because only one can be saved.',
+  skewer_allowed: 'Keep your king and queen off open lines where an enemy rook or bishop can attack them with another piece behind.',
+  skewer_missed: 'When an enemy king or queen stands in front of another piece on a line, look for a skewer.',
+  discovered_attack_allowed: 'Watch enemy pieces lined up with your king or queen behind another enemy piece: when that piece moves, the line opens.',
+  discovered_attack_missed: 'When one of your pieces blocks the line of your rook, bishop or queen, look at what moving it would uncover.',
+  double_check_allowed: 'A double check can only be answered by moving the king. Keep your king away from lines that two enemy pieces can open at once.',
+  double_check_missed: 'Look for moves that give check with two pieces at once: the opponent can only move the king.',
+  pin: 'A piece pinned to the king cannot move. Before playing, check whether any of your pieces is pinned and attacked.',
+  back_rank: 'Give your king an escape square (for example by playing h3 or g3) when your back rank is weak.',
+  endgame: 'In the endgame, slow down and check every move: one tempo often decides the result.',
   combination_missed:
     'When your pieces are active, search for forcing moves (checks and captures) before quiet ones.',
   eval_drop:
@@ -87,6 +97,21 @@ const LESSONS = {
 } as const;
 
 export const pieceLabel = (p: PieceAt): string => `${p.role} on ${p.square}`;
+
+/** One sentence describing a tactical pattern, from the side that plays it ("your" = the victim when `against` is true). */
+function patternSentence(m: Motif, moveSan: string, against: boolean): string {
+  const their = against ? 'your' : 'the';
+  switch (m.kind) {
+    case 'double_check':
+      return `${moveSan} is a double check: the king has to move, so nothing else can be saved.`;
+    case 'discovered_attack':
+      return `${moveSan} moves the ${pieceLabel(m.moved)} out of the way, and the ${pieceLabel(m.attacker)} suddenly attacks ${their} ${pieceLabel(m.target)}: a discovered attack.`;
+    case 'fork':
+      return `${moveSan} is a fork: the ${pieceLabel(m.by)} attacks ${their} ${listTargets(m.targets)} at the same time.`;
+    case 'skewer':
+      return `${moveSan} is a skewer: the ${pieceLabel(m.by)} attacks ${their} ${pieceLabel(m.front)}, and when it moves, the ${pieceLabel(m.behind)} behind it falls.`;
+  }
+}
 
 const pct = (x: number) => `${Math.round(x)}%`;
 
@@ -134,6 +159,14 @@ export function explainMove(input: ExplainInput): Explanation {
       case 'forced':
         summary = 'The only legal move.';
         break;
+      case 'brilliant': {
+        const sac = a.sacrifice;
+        summary = sac
+          ? `A sound sacrifice: your ${pieceLabel(sac.piece)} can be taken, and that is fine.`
+          : 'A sound sacrifice.';
+        if (sac) details.push(`Taking it wins about ${sac.investment} points of material for your opponent, yet your winning chances stay at ${pct(a.winAfter)}.`);
+        break;
+      }
       case 'great':
         summary = 'The only good move in the position.';
         if (a.secondBestLoss !== undefined) {
@@ -154,6 +187,9 @@ export function explainMove(input: ExplainInput): Explanation {
       lines.push({ label: `Best line: ${best.san}`, fen: input.fenBefore, moves: bestLine.slice(0, 8) });
       arrows.push(...arrowOf(best, 'best'));
     }
+    if ((c === 'brilliant' || c === 'great') && bestLine.length > 1) {
+      lines.push({ label: 'Why it works', fen: input.fenBefore, moves: bestLine.slice(0, 8) });
+    }
     const out: Explanation = { title, summary, details, lines, arrows };
     if (c === 'good' && best) out.better = { san: best.san, text: `${best.san} kept a little more.` };
     return out;
@@ -167,16 +203,27 @@ export function explainMove(input: ExplainInput): Explanation {
 
   if (fact) {
     switch (fact.kind) {
+      case 'endgame_thrown': {
+        summary =
+          fact.from === 'win'
+            ? `This throws away a won endgame: the result is now ${fact.to === 'draw' ? 'a draw' : 'a loss'} with best play.`
+            : 'This turns a drawn endgame into a lost one.';
+        details.push('With seven pieces or fewer, the tablebase knows the exact result of every position.');
+        if (fact.bestLine[0]) details.push(`${fact.bestLine[0].san} kept the ${fact.from}.`);
+        lesson = LESSONS.endgame;
+        break;
+      }
       case 'mate_allowed': {
-        summary = `This allows a forced checkmate in ${fact.mateIn}.`;
+        summary = `This allows a forced checkmate in ${fact.mateIn}${fact.backRank ? ' on your back rank' : ''}.`;
+        if (fact.backRank) lesson = LESSONS.back_rank;
         details.push(`Your opponent forces it: ${formatLine(fact.line)}.`);
         lines.push({ label: 'The mating line', fen: input.fenAfter, moves: fact.line });
         arrows.push(...arrowOf(fact.line[0], 'threat'));
-        lesson = LESSONS.mate_allowed;
+        if (!fact.backRank) lesson = LESSONS.mate_allowed;
         break;
       }
       case 'mate_missed': {
-        summary = `You had a forced checkmate in ${fact.mateIn}.`;
+        summary = `You had a forced checkmate in ${fact.mateIn}${fact.backRank ? ' on the back rank' : ''}.`;
         details.push(`${formatLine(fact.line)} would have ended the game.`);
         lines.push({ label: 'The missed mate', fen: input.fenBefore, moves: fact.line });
         arrows.push(...arrowOf(fact.line[0], 'best'));
@@ -201,11 +248,16 @@ export function explainMove(input: ExplainInput): Explanation {
               : `${san} removes a defender of ${what}.`;
             lesson = LESSONS.removed_defender;
             break;
+          case 'pin':
+            summary = `${san} lets your opponent win ${what}: it is pinned to your king and cannot escape.`;
+            lesson = LESSONS.pin;
+            break;
           case 'fork':
-            summary = fact.fork
-              ? `${san} allows ${reply?.san ?? 'a fork'}: the ${pieceLabel(fact.fork.by)} attacks your ${listTargets(fact.fork.targets)} at the same time.`
-              : `${san} allows a fork.`;
-            lesson = LESSONS.fork_allowed;
+          case 'skewer':
+          case 'discovered_attack':
+          case 'double_check':
+            summary = fact.pattern && reply ? `${san} allows ${patternSentence(fact.pattern, reply.san, true)}` : `${san} allows a ${fact.motif.replace('_', ' ')}.`;
+            lesson = LESSONS[`${fact.motif}_allowed`];
             break;
           default:
             summary = `${san} allows a combination that wins ${what}.`;
@@ -226,10 +278,11 @@ export function explainMove(input: ExplainInput): Explanation {
             lesson = LESSONS.free_capture;
             break;
           case 'fork':
-            summary = fact.fork
-              ? `${first?.san} was a fork: the ${pieceLabel(fact.fork.by)} would attack the ${listTargets(fact.fork.targets)}.`
-              : `${first?.san} was a fork.`;
-            lesson = LESSONS.fork_missed;
+          case 'skewer':
+          case 'discovered_attack':
+          case 'double_check':
+            summary = fact.pattern && first ? `You missed ${patternSentence(fact.pattern, first.san, false)}` : `You missed a ${fact.motif.replace('_', ' ')}.`;
+            lesson = LESSONS[`${fact.motif}_missed`];
             break;
           default:
             summary = `${first?.san} started a sequence that wins material.`;
@@ -250,6 +303,9 @@ export function explainMove(input: ExplainInput): Explanation {
         break;
       }
     }
+  }
+  if (facts.some((f) => f.kind === 'castling_lost')) {
+    details.push('Moving your king also gave up the right to castle.');
   }
   if (c === 'miss') {
     details.unshift("Your opponent's previous move was an error, and this move lets the advantage slip.");

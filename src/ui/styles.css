@@ -488,6 +488,32 @@ textarea {
 [data-class='blunder'] { --badge: var(--c-blunder); fill: var(--c-blunder); }
 
 /* Coach */
+.refining {
+  margin: -4px 0 10px !important;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 13px;
+}
+.tag-warn {
+  background: color-mix(in srgb, var(--c-mistake) 18%, var(--surface));
+  color: var(--text);
+}
+.coach-summary-text {
+  margin: 4px 0 8px;
+}
+.recent h2 {
+  font-size: 20px;
+}
+.recent .library-list {
+  margin-top: 12px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.home .library {
+  grid-column: 1 / -1;
+}
 .coach {
   background: var(--surface);
   border: 1px solid var(--line);

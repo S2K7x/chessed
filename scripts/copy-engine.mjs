@@ -10,6 +10,9 @@ const dest = join(root, 'public', 'engine');
 const files = [
   ['bin/stockfish-19-lite-single.js', 'stockfish-19-lite-single.js'],
   ['bin/stockfish-19-lite-single.wasm', 'stockfish-19-lite-single.wasm'],
+  // Multi-threaded build: used when the page is cross-origin isolated.
+  ['bin/stockfish-19-lite.js', 'stockfish-19-lite.js'],
+  ['bin/stockfish-19-lite.wasm', 'stockfish-19-lite.wasm'],
   ['Copying.txt', 'COPYING.txt'],
 ];
 

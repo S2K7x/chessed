@@ -21,6 +21,10 @@ export interface Settings {
   lichessUsername: string;
   chesscomUsername: string;
   depth: number;
+  /** "quick": the depth above, MultiPV 2. "deep": at least depth 20, MultiPV 3. */
+  profile: 'quick' | 'deep';
+  /** Use Lichess tablebases and cloud evaluations (sends those positions to lichess.org). */
+  useLichess: boolean;
   theme: 'system' | 'light' | 'dark';
 }
 
@@ -29,6 +33,8 @@ export const DEFAULT_APP_SETTINGS: Settings = {
   lichessUsername: '',
   chesscomUsername: '',
   depth: 14,
+  profile: 'quick',
+  useLichess: true,
   theme: 'system',
 };
 

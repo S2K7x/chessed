@@ -5,12 +5,18 @@ mistakes, and practise the positions where you went wrong.
 
 - **Local analysis.** Stockfish 19 (WebAssembly) runs in your browser; your
   games are stored on your device (IndexedDB). No account, no server costs.
-- **Transparent classification.** Best, Excellent, Good, Book, Forced,
-  Inaccuracy, Mistake, Missed opportunity, Blunder and Great move, with
-  documented rules: see [docs/CLASSIFICATION.md](docs/CLASSIFICATION.md).
+- **Transparent classification.** Brilliant (verified sacrifices), Great,
+  Best, Excellent, Good, Book, Forced, Inaccuracy, Mistake, Missed opportunity
+  and Blunder, with documented rules: see [docs/CLASSIFICATION.md](docs/CLASSIFICATION.md).
+- **Deeper where it matters.** A quick or deep profile, then a second, deeper
+  pass on every critical moment. Multi-threaded Stockfish when the page is
+  cross-origin isolated. Optional Lichess tablebases (exact endgames) and cloud
+  evaluations (openings).
 - **Explanations grounded in the board.** Each error is explained from facts
-  computed on the position and the engine's lines (forced mates, pieces left
-  under-defended, forks, missed captures), never from guesses.
+  computed on the position and the engine's lines (forced and back-rank mates,
+  pieces left under-defended, removed defenders, forks, pins, skewers,
+  discovered attacks, double checks, missed captures, thrown endgames, time
+  trouble), never from guesses. Each game gets a short written summary.
 - **Learn from your mistakes.** Replay the position before a mistake and find
   a better move; your answer is checked by the engine.
 
@@ -42,6 +48,8 @@ which side you played.
 
 ## Importing games
 
+- **Your latest games**: with your usernames in Settings, list your last 20
+  Lichess or Chess.com games and open one in a click.
 - **PGN**: paste it or open a `.pgn` file (several games per file are supported).
 - **Lichess link**: fetched from the public Lichess API.
 - **Chess.com link**: the app looks the game up in the official monthly
@@ -52,6 +60,13 @@ which side you played.
   [`proxy/worker.ts`](proxy/worker.ts) as a free Cloudflare Worker and build with
   `VITE_CHESSCOM_PROXY=https://<worker>.workers.dev`. Without the proxy, games
   of the Chess.com username saved in Settings still import by link.
+
+## Hosting
+
+The app is a static site. For the multi-threaded engine, serve it with
+`Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp` (see `public/_headers`, read by
+Cloudflare Pages and Netlify). Without them it falls back to one thread.
 
 ## Project layout
 

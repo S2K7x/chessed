@@ -2,8 +2,8 @@ import { useRef, useState } from 'react';
 import { useStore } from '../app/store';
 
 export function HomeView() {
-  const { library, busy, settings } = useStore();
-  const { importInput, importFile, openGame, deleteGame, setView } = useStore.getState();
+  const { library, busy, settings, recent } = useStore();
+  const { importInput, importFile, openGame, deleteGame, setView, loadRecent } = useStore.getState();
   const [text, setText] = useState('');
   const file = useRef<HTMLInputElement>(null);
 
@@ -52,8 +52,39 @@ export function HomeView() {
         )}
       </section>
 
+      <section className="recent card">
+        <h2>Your latest games</h2>
+        <div className="import-actions">
+          <button onClick={() => void loadRecent('lichess')} disabled={!settings.lichessUsername || recent?.loading}>
+            From Lichess{settings.lichessUsername ? ` (${settings.lichessUsername})` : ''}
+          </button>
+          <button onClick={() => void loadRecent('chesscom')} disabled={!settings.chesscomUsername || recent?.loading}>
+            From Chess.com{settings.chesscomUsername ? ` (${settings.chesscomUsername})` : ''}
+          </button>
+        </div>
+        {!settings.lichessUsername && !settings.chesscomUsername && (
+          <p className="muted small">Add your usernames in Settings to list your latest games here.</p>
+        )}
+        {recent?.loading && <p className="muted">Loading…</p>}
+        {recent && !recent.loading && recent.games.length === 0 && <p className="muted">No recent games found.</p>}
+        {recent && recent.games.length > 0 && (
+          <ul className="library-list">
+            {recent.games.map((g) => (
+              <li key={g.id} className="library-item">
+                <button className="library-open" onClick={() => void openGame(g)}>
+                  <span className="library-players">
+                    {g.white.name} <span className="muted">vs</span> {g.black.name}
+                  </span>
+                  <span className="muted">{[g.result, g.timeControl?.speed, g.date, g.openingName].filter(Boolean).join(' · ')}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="library">
-        <h2>Your games</h2>
+        <h2>Analysed games</h2>
         {library.length === 0 ? (
           <p className="muted">Games you analyse are kept on this device.</p>
         ) : (
