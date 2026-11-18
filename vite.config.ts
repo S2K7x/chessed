@@ -12,6 +12,10 @@ const isolation = {
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // Maia runs on the plain WASM backend; skip the WebGPU/JSEP build (~30 MB).
+    alias: { 'onnxruntime-web': 'onnxruntime-web/wasm' },
+  },
   // The opening book (≈730 kB, 86 kB gzipped) is its own lazily loaded chunk.
   build: { chunkSizeWarningLimit: 800 },
   preview: { headers: isolation },
@@ -28,7 +32,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'proxy/*.test.ts'],
     environment: 'node',
     testTimeout: 60_000,
   },

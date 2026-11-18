@@ -3,6 +3,8 @@ import { epdOf } from '../core/chess';
 import type { PositionEval } from '../core/eval';
 import type { Game } from '../core/game';
 import type { EvalCache, GameReview } from '../core/review';
+import type { Level } from '../core/coach/sheet';
+import type { CoachText } from '../core/coach/verify';
 
 export interface StoredEval {
   /** `${epd}|${engineId}|${multiPv}` */
@@ -16,6 +18,14 @@ export interface StoredReview {
   review: GameReview;
 }
 
+export interface StoredExplanation {
+  /** `${fenBefore}|${uci}|${classifierVersion}|${promptVersion}|${level}` */
+  key: string;
+  text: CoachText;
+  model?: string;
+  createdAt: number;
+}
+
 export interface Settings {
   key: 'settings';
   lichessUsername: string;
@@ -26,6 +36,12 @@ export interface Settings {
   /** Use Lichess tablebases and cloud evaluations (sends those positions to lichess.org). */
   useLichess: boolean;
   theme: 'system' | 'light' | 'dark';
+  /** Coach register: from the game's rating, or fixed. */
+  level: 'auto' | Level;
+  /** Language-model coach (needs the proxy's /coach endpoint and its token). */
+  llmCoach: boolean;
+  coachUrl: string;
+  coachToken: string;
 }
 
 export const DEFAULT_APP_SETTINGS: Settings = {
@@ -36,6 +52,10 @@ export const DEFAULT_APP_SETTINGS: Settings = {
   profile: 'quick',
   useLichess: true,
   theme: 'system',
+  level: 'auto',
+  llmCoach: false,
+  coachUrl: import.meta.env.VITE_COACH_URL ?? '',
+  coachToken: '',
 };
 
 class CoachDb extends Dexie {
@@ -43,6 +63,7 @@ class CoachDb extends Dexie {
   reviews!: EntityTable<StoredReview, 'gameId'>;
   evals!: EntityTable<StoredEval, 'key'>;
   settings!: EntityTable<Settings, 'key'>;
+  explanations!: EntityTable<StoredExplanation, 'key'>;
 
   constructor() {
     super('chess-coach');
@@ -52,6 +73,7 @@ class CoachDb extends Dexie {
       evals: 'key',
       settings: 'key',
     });
+    this.version(2).stores({ explanations: 'key, createdAt' });
   }
 }
 

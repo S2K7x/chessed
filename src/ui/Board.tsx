@@ -45,8 +45,9 @@ export function Board({ fen, orientation, lastMove, arrows = [], onMove }: Board
     const pos = positionFromFen(fen);
     const turn = pos.turn;
     const shapes: DrawShape[] = arrows
-      .filter((a) => a.from && a.to)
-      .map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: BRUSH[a.brush] }));
+      .filter((a) => a.from)
+      // An arrow from a square to itself is drawn as a circle.
+      .map((a) => (a.to && a.to !== a.from ? { orig: a.from as Key, dest: a.to as Key, brush: BRUSH[a.brush] } : { orig: a.from as Key, brush: BRUSH[a.brush] }));
     cg.set({
       fen,
       orientation,

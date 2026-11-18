@@ -2,6 +2,8 @@ name = "chess-coach-proxy"
 main = "worker.ts"
 compatibility_date = "2026-11-01"
 
-# Optional: restrict which sites may call the proxy (comma separated).
+# Optional settings:
 # [vars]
-# ALLOWED_ORIGINS = "https://your-app.pages.dev"
+# ALLOWED_ORIGINS = "https://your-app.pages.dev"   # who may call the proxy
+# COACH_MODEL = "claude-opus-5-5"                   # model of the /coach endpoint
+# Secrets (npx wrangler secret put ...): ANTHROPIC_API_KEY, COACH_TOKEN

@@ -18,7 +18,13 @@ mistakes, and practise the positions where you went wrong.
   discovered attacks, double checks, missed captures, thrown endgames, time
   trouble), never from guesses. Each game gets a short written summary.
 - **Learn from your mistakes.** Replay the position before a mistake and find
-  a better move; your answer is checked by the engine.
+  a better move, with graded hints; your answer is checked and explained by the
+  engine. Then play the position on against Maia, a model of human play.
+- **Human context.** Maia-3 shows what players of your rating usually play in
+  the position: many errors are natural moves, worth understanding.
+- **Optional language-model coach.** Claude rewrites the verified facts for your
+  level (beginner, intermediate, advanced); every answer is checked against the
+  board before it is shown. See [docs/COACH.md](docs/COACH.md).
 
 ## Getting started
 
@@ -77,7 +83,7 @@ src/engine/    Stockfish in a Web Worker
 src/db/        IndexedDB storage (Dexie)
 src/app/       Application state (Zustand)
 src/ui/        React components (board: chessground)
-proxy/         Cloudflare Worker for Chess.com game links
+proxy/         Cloudflare Worker: Chess.com game links and the optional /coach endpoint
 e2e/           Playwright test
 ```
 

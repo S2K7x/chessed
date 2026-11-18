@@ -6,17 +6,19 @@ const LEGALL = `[White "Legall"]
 
 1. e4 e5 2. Nf3 d6 3. Bc4 Bg4 4. Nc3 g6 5. Nxe5 Bxd1 6. Bxf7+ Ke7 7. Nd5# 1-0`;
 
-/** Clicks a square of the board (White at the bottom). */
-async function clickSquare(page: Page, square: string) {
+/** Clicks a square of the board, given which side is at the bottom. */
+async function clickSquare(page: Page, square: string, bottom: 'white' | 'black' = 'white') {
   await expect.poll(async () => (await page.locator('cg-board').boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(0);
   const box = (await page.locator('cg-board').boundingBox())!;
-  const file = square.charCodeAt(0) - 97;
-  const rank = Number(square[1]) - 1;
+  const file = bottom === 'white' ? square.charCodeAt(0) - 97 : 7 - (square.charCodeAt(0) - 97);
+  const rank = bottom === 'white' ? Number(square[1]) - 1 : 7 - (Number(square[1]) - 1);
   const size = box.width / 8;
   await page.mouse.click(box.x + (file + 0.5) * size, box.y + (7 - rank + 0.5) * size);
 }
 
 test('imports a PGN, reviews it and practises the blunder', async ({ page }, info) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (e) => pageErrors.push(e.message));
   await page.goto('/');
   await page.getByLabel('Game link or PGN').fill(LEGALL);
   await page.getByRole('button', { name: 'Analyse' }).click();
@@ -55,12 +57,13 @@ test('imports a PGN, reviews it and practises the blunder', async ({ page }, inf
 
   await page.getByRole('button', { name: 'Retry this move' }).click();
   await expect(page.getByText('Find a better move')).toBeVisible();
-  await clickSquare(page, 'd6');
-  await clickSquare(page, 'e5');
+  await clickSquare(page, 'd6', 'black');
+  await clickSquare(page, 'e5', 'black');
   await expect(page.locator('.verdict-good')).toContainText('dxe5 works', { timeout: 30_000 });
   await page.screenshot({ path: `test-results/retry-${info.project.name}.png`, fullPage: true });
 
   // The game is kept in the library.
   await page.getByRole('button', { name: 'Games' }).click();
   await expect(page.locator('.library-item')).toContainText('Legall');
+  expect(pageErrors).toEqual([]);
 });

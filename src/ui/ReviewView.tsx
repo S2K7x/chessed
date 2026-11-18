@@ -6,10 +6,11 @@ import { CoachPanel } from './CoachPanel';
 import { EvalBar } from './EvalBar';
 import { EvalGraph } from './EvalGraph';
 import { MoveList } from './MoveList';
+import { hintsFor } from '../core/hints';
 
 export function ReviewView() {
-  const { game, review, cursor, orientation, lineView, retry, liveWins, myColor } = useStore();
-  const { goTo, step, flip, closeLine, endRetry, submitAttempt, toggleAutoplay, stepLine } = useStore.getState();
+  const { game, review, cursor, orientation, lineView, retry, liveWins, myColor, playout, hintsShown } = useStore();
+  const { goTo, step, flip, closeLine, endRetry, submitAttempt, toggleAutoplay, stepLine, playoutMove, endPlayout } = useStore.getState();
 
   // Autoplay of a line: one move every 900 ms.
   const playing = lineView?.playing ?? false;
@@ -30,11 +31,12 @@ export function ReviewView() {
       else if (e.key === ' ' && lineView) toggleAutoplay();
       else if (e.key === 'Escape') {
         if (lineView) closeLine();
+        else if (playout) endPlayout();
         else if (retry) endRetry();
       } else return;
       e.preventDefault();
     },
-    [lineView, retry, step, goTo, flip, closeLine, endRetry, toggleAutoplay],
+    [lineView, retry, playout, step, goTo, flip, closeLine, endRetry, endPlayout, toggleAutoplay],
   );
   useEffect(() => {
     window.addEventListener('keydown', onKey);
@@ -56,6 +58,10 @@ export function ReviewView() {
 
   const board = useMemo(() => {
     if (!game) return undefined;
+    if (playout) {
+      const last = playout.history[playout.history.length - 1];
+      return { fen: playout.fen, lastMove: last, arrows: [] as Arrow[], evalIndex: undefined, interactive: playout.status === 'user', playout: true };
+    }
     if (lineView) {
       const { line, index } = lineView;
       const played = line.moves[index - 1];
@@ -72,14 +78,24 @@ export function ReviewView() {
         const r = v.refutation[0];
         arrows.push({ from: r.uci.slice(0, 2), to: r.uci.slice(2, 4), brush: 'threat' });
       }
+      if (review && retry.status !== 'done') {
+        const hints = hintsFor(review.moves[retry.moveIndex]!).slice(0, hintsShown);
+        for (const h of hints) {
+          if (h.arrow) arrows.push({ ...h.arrow, brush: 'best' });
+          else if (h.circle) arrows.push({ from: h.circle, to: h.circle, brush: 'best' });
+        }
+      }
       return { fen: m.fenBefore, lastMove: prev?.uci, arrows, evalIndex: retry.moveIndex, interactive: retry.status === 'solving' };
     }
     const m = game.moves[cursor - 1];
     const arrows = cursor > 0 ? review?.moves[cursor - 1]?.explanation.arrows.filter((a) => a.brush !== 'played') ?? [] : [];
     return { fen: m ? m.fenAfter : game.startFen, lastMove: m?.uci, arrows, evalIndex: cursor };
-  }, [game, review, cursor, lineView, retry]);
+  }, [game, review, cursor, lineView, retry, playout, hintsShown]);
 
-  const onMove = useCallback((uci: string) => void submitAttempt(uci), [submitAttempt]);
+  const onMove = useCallback(
+    (uci: string) => void (useStore.getState().playout ? playoutMove(uci) : submitAttempt(uci)),
+    [submitAttempt, playoutMove],
+  );
 
   if (!game || !board) return null;
   const evaluation = board.evalIndex !== undefined ? review?.evals[board.evalIndex] : undefined;

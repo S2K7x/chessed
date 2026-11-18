@@ -9,6 +9,10 @@ Chess Coach is licensed under the GNU General Public License v3.0 or later
 | [chessops](https://github.com/niklasf/chessops) | GPL-3.0-or-later | Rules, FEN, SAN, PGN, attacks |
 | [chessground](https://github.com/lichess-org/chessground) | GPL-3.0-or-later | Board (includes the cburnett piece set) |
 | [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) | CC0-1.0 | Opening names, `src/data/openings.json` |
+| [Maia-3](https://github.com/CSSLab/maia3) (CSSLab, University of Toronto) | AGPL-3.0 | Human move prediction model, `public/models/maia3_5m.onnx` (copied from `maia3-js`). Loaded on demand. As an AGPL component, its source is available at the link above; this app's source is linked in Settings. |
+| [maia3-js](https://www.npmjs.com/package/maia3-js) | MIT | Maia-3 inference in the browser |
+| [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) | MIT | Runs Maia-3 (WASM backend) |
+| [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript), [Zod](https://zod.dev) | MIT | Proxy `/coach` endpoint only |
 | [React](https://react.dev) | MIT | UI |
 | [Zustand](https://github.com/pmndrs/zustand) | MIT | State |
 | [Dexie](https://dexie.org) | Apache-2.0 | IndexedDB storage |

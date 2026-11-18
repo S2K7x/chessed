@@ -195,7 +195,7 @@ export function buildReview(
     const bestLine = before.lines[0] ? replayUci(m.fenBefore, before.lines[0].pv, 10) : [];
     const isError = ERROR_CLASSES.has(assessment.classification);
     const facts = isError
-      ? detectFacts({ uci: m.uci, color: m.color, fenBefore: m.fenBefore, fenAfter: m.fenAfter, before, after })
+      ? detectFacts({ uci: m.uci, color: m.color, fenBefore: m.fenBefore, fenAfter: m.fenAfter, before, after, ply: m.ply })
       : [];
     const label = moveNumberLabel(m.ply);
     const explanation = explainMove({
@@ -225,7 +225,9 @@ export function buildReview(
       timeTrouble: false,
     };
     if (isError) {
-      review.errorKind = facts.some((f) => f.kind !== 'eval_drop' && f.kind !== 'castling_lost') ? 'tactical' : 'positional';
+      review.errorKind = facts.some((f) => f.kind !== 'eval_drop' && f.kind !== 'castling_lost' && f.kind !== 'positional')
+        ? 'tactical'
+        : 'positional';
     }
     const clock = clockInfo(game, i);
     if (clock) {

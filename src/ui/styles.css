@@ -647,6 +647,64 @@ textarea {
   gap: 6px;
 }
 
+.llm {
+  margin: 4px 0 10px;
+}
+.llm-headline {
+  font-weight: 600;
+  font-size: 16px;
+}
+.small-kicker {
+  margin-top: 6px !important;
+  font-size: 11px;
+}
+.glossary {
+  padding: 6px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+}
+.hint-line {
+  padding: 6px 10px;
+  border-left: 3px solid var(--c-great);
+  background: color-mix(in srgb, var(--c-great) 8%, var(--surface));
+  border-radius: 0 6px 6px 0;
+}
+.human {
+  margin-top: 10px;
+}
+.human-list {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0;
+  display: grid;
+  gap: 4px;
+}
+.human-list li {
+  display: grid;
+  grid-template-columns: 56px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.human-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--muted);
+  opacity: 0.5;
+}
+.human-list li.is-played .human-bar {
+  background: var(--c-mistake);
+  opacity: 1;
+}
+.human-list li.is-best .human-bar {
+  background: var(--c-best);
+  opacity: 1;
+}
+.human-pct {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Move list */
 .movelist {
   list-style: none;

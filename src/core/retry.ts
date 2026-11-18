@@ -1,5 +1,7 @@
 import { legalUci, positionFromFen, replayUci, terminalOf, type SanMove } from './chess';
-import { THRESHOLDS } from './classify';
+import { classifyMove, THRESHOLDS } from './classify';
+import { explainMove, type Explanation } from './explain';
+import { detectFacts } from './facts';
 import type { Evaluator } from './engine';
 import { positionPovWinPercent, type Color, type PositionEval } from './eval';
 
@@ -22,6 +24,8 @@ export interface AttemptVerdict {
   winLoss: number;
   /** Opponent's best reply line after the attempt (legal). */
   refutation: SanMove[];
+  /** Why the attempt fails (or falls short), from the same facts as the review. */
+  explanation?: Explanation;
 }
 
 export async function judgeAttempt(
@@ -50,5 +54,21 @@ export async function judgeAttempt(
   const winLoss = Math.max(0, winBefore - winAfter);
   const result: AttemptResult = winLoss <= SOLVED_MAX_LOSS ? 'solved' : winLoss <= CLOSE_MAX_LOSS ? 'close' : 'wrong';
   const refutation = afterEval.lines[0] ? replayUci(played.fenAfter, afterEval.lines[0].pv, 6) : [];
-  return { result, san: played.san, winBefore, winAfter, winLoss, refutation };
+  const verdict: AttemptVerdict = { result, san: played.san, winBefore, winAfter, winLoss, refutation };
+  if (result !== 'solved') {
+    const assessment = classifyMove({ uci: attemptUci, color, before: best, after: afterEval, legalMoves: 2, inBook: false });
+    const facts = detectFacts({ uci: attemptUci, color, fenBefore: fen, fenAfter: played.fenAfter, before: best, after: afterEval });
+    verdict.explanation = explainMove({
+      san: played.san,
+      uci: attemptUci,
+      moveLabel: '',
+      color,
+      fenBefore: fen,
+      fenAfter: played.fenAfter,
+      assessment,
+      facts,
+      bestLine: best.lines[0] ? replayUci(fen, best.lines[0].pv, 8) : [],
+    });
+  }
+  return verdict;
 }

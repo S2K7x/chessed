@@ -39,6 +39,34 @@ export function SettingsView() {
       </label>
       <p className="muted">Exact endgame results (7 pieces or fewer) and deep opening evaluations. Those positions are sent to lichess.org.</p>
       <fieldset>
+        <legend>Coach level</legend>
+        {(['auto', 'beginner', 'intermediate', 'advanced'] as const).map((l) => (
+          <label key={l} className="radio">
+            <input type="radio" name="level" checked={settings.level === l} onChange={() => void updateSettings({ level: l })} />
+            {l === 'auto' ? 'From the game rating' : l[0]!.toUpperCase() + l.slice(1)}
+          </label>
+        ))}
+      </fieldset>
+      <fieldset>
+        <legend>Language-model coach (optional)</legend>
+        <label className="radio">
+          <input type="checkbox" checked={settings.llmCoach} onChange={(e) => void updateSettings({ llmCoach: e.target.checked })} />
+          Write explanations with Claude
+        </label>
+        <label>
+          Coach endpoint
+          <input value={settings.coachUrl} placeholder="https://your-worker.workers.dev/coach" onChange={(e) => void updateSettings({ coachUrl: e.target.value })} spellCheck={false} />
+        </label>
+        <label>
+          Coach token
+          <input type="password" value={settings.coachToken} onChange={(e) => void updateSettings({ coachToken: e.target.value })} autoComplete="off" />
+        </label>
+        <p className="muted small">
+          Uses your own proxy (proxy/worker.ts) and Anthropic API key. Only verified facts about the move are sent. Every answer is checked against the
+          board before it is shown; if it mentions a move, square or piece that is not in the facts, the engine facts are shown instead.
+        </p>
+      </fieldset>
+      <fieldset>
         <legend>Theme</legend>
         {(['system', 'light', 'dark'] as const).map((t) => (
           <label key={t} className="radio">
@@ -48,7 +76,7 @@ export function SettingsView() {
         ))}
       </fieldset>
       <p className="muted small">
-        Chess Coach is free software (GPL-3.0-or-later), powered by Stockfish 19. See the <a href="https://github.com/S2K7x/chessed">source code</a>.
+        Chess Coach is free software (GPL-3.0-or-later), powered by Stockfish 19 and Maia-3 (CSSLab, AGPL-3.0). See the <a href="https://github.com/S2K7x/chessed">source code</a>.
       </p>
     </div>
   );

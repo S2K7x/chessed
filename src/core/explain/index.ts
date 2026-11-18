@@ -3,6 +3,7 @@ import type { Assessment, Classification } from '../classify';
 import type { Color } from '../eval';
 import type { Fact, PieceAt } from '../facts';
 import type { Motif } from '../facts/motifs';
+import type { PositionalTheme } from '../facts/positional';
 
 /**
  * Template explanations. Every piece, square and move mentioned here comes
@@ -293,6 +294,17 @@ export function explainMove(input: ExplainInput): Explanation {
         arrows.push(...arrowOf(first, 'best'));
         break;
       }
+      case 'positional': {
+        const t = POSITIONAL[fact.theme];
+        summary = t.summary(san, fact.squares, fact.bestDevelops);
+        lesson = t.lesson;
+        const drop = facts.find((f) => f.kind === 'eval_drop');
+        if (drop?.kind === 'eval_drop' && drop.line.length > 0) {
+          details.push(`The engine expects ${formatLine(drop.line, 6)}.`);
+          lines.push({ label: "The engine's continuation", fen: input.fenAfter, moves: drop.line });
+        }
+        break;
+      }
       case 'eval_drop': {
         summary = `${san} does not lose material right away, but it worsens your position. ${winText}`;
         if (fact.line.length > 0) {
@@ -312,6 +324,9 @@ export function explainMove(input: ExplainInput): Explanation {
     lesson = LESSONS.miss;
   }
   if (fact?.kind !== 'mate_allowed' && fact?.kind !== 'eval_drop') details.push(winText);
+  for (const extra of facts.slice(1)) {
+    if (extra.kind === 'positional' && extra !== fact) details.push(POSITIONAL[extra.theme].summary(san, extra.squares, extra.bestDevelops));
+  }
 
   const out: Explanation = { title, summary, details, lines, arrows, lesson };
   arrows.push({ from: input.uci.slice(0, 2), to: input.uci.slice(2, 4), brush: 'played' });
@@ -325,9 +340,79 @@ export function explainMove(input: ExplainInput): Explanation {
   return out;
 }
 
+const listSquares = (sq: string[]) => (sq.length <= 1 ? sq.join('') : `${sq.slice(0, -1).join(', ')} and ${sq[sq.length - 1]}`);
+
+const POSITIONAL: Record<PositionalTheme, { summary: (san: string, squares: string[], bestDevelops?: string) => string; lesson: string }> = {
+  isolated_pawn: {
+    summary: (san, sq) => `${san} leaves an isolated pawn on ${listSquares(sq)}: no pawn on a neighbouring file can protect it.`,
+    lesson: 'Isolated pawns need pieces to defend them. Avoid creating one unless you get activity in return.',
+  },
+  doubled_pawns: {
+    summary: (san, sq) => `${san} doubles your pawns (${listSquares(sq)}): they cannot protect each other.`,
+    lesson: 'Doubled pawns are a long-term weakness. Accept them only for open lines or a strong centre.',
+  },
+  passed_pawn_allowed: {
+    summary: (san, sq) => `After ${san} your opponent has a passed pawn on ${listSquares(sq)}: nothing can stop it with a pawn any more.`,
+    lesson: 'Passed pawns grow stronger as pieces come off. Keep your pawns where they can stop enemy pawns.',
+  },
+  king_shelter: {
+    summary: (san, sq) => `${san} moves a pawn away from your king on ${sq[1]}, opening lines towards it.`,
+    lesson: 'The pawns in front of your castled king are its shield. Move them only for a clear reason.',
+  },
+  knight_rim: {
+    summary: (san, sq) => `${san} puts the knight on the edge (${sq[0]}), where it controls few squares.`,
+    lesson: 'A knight on the rim is dim: knights are strongest in the centre.',
+  },
+  early_queen: {
+    summary: (san, _sq, best) =>
+      `${san} brings the queen out early while your minor pieces are still at home${best ? `; ${best} develops a piece instead` : ''}.`,
+    lesson: 'In the opening, develop knights and bishops first. An early queen can be chased with gain of time.',
+  },
+  undeveloped: {
+    summary: (san, _sq, best) => `${san} spends a move while pieces are still at home${best ? `; ${best} develops one` : ''}.`,
+    lesson: 'In the opening, every move should bring a new piece into play or fight for the centre.',
+  },
+};
+
 function betterText(bestSan: string, facts: Fact[], a: Assessment): string {
   const missed = facts.find((f) => f.kind === 'missed_material' || f.kind === 'mate_missed');
   if (missed?.kind === 'mate_missed') return `It starts a forced mate.`;
   if (missed?.kind === 'missed_material') return `It wins material.`;
   return `With ${bestSan} your winning chances stay around ${pct(a.winBefore)}, instead of ${pct(a.winAfter)}.`;
+}
+
+/** Short definitions shown to beginners next to an explanation. */
+export const GLOSSARY: Record<string, string> = {
+  fork: 'Fork: one piece attacks two enemy pieces at once; only one can be saved.',
+  pin: 'Pin: a piece cannot move because a more valuable piece (often the king) stands behind it.',
+  skewer: 'Skewer: a valuable piece is attacked and, when it moves, the piece behind it is lost.',
+  'discovered attack': 'Discovered attack: moving one piece uncovers an attack by another piece behind it.',
+  'double check': 'Double check: two pieces give check at once; only a king move can answer it.',
+  'back rank': 'Back-rank mate: a rook or queen mates a king stuck behind its own pawns on the first or last rank.',
+  'passed pawn': 'Passed pawn: a pawn with no enemy pawn in front of it or on the files next to it.',
+  'isolated pawn': 'Isolated pawn: a pawn with no friendly pawn on the files next to it.',
+  'doubled pawns': 'Doubled pawns: two pawns of the same colour on one file.',
+  tablebase: 'Tablebase: a database with the exact result of every endgame with seven pieces or fewer.',
+};
+
+/** Glossary entries relevant to these facts. */
+export function glossaryFor(facts: Fact[]): string[] {
+  const terms = new Set<string>();
+  for (const f of facts) {
+    if (f.kind === 'material_lost' || f.kind === 'missed_material') {
+      if (f.motif === 'fork') terms.add('fork');
+      if (f.motif === 'pin') terms.add('pin');
+      if (f.motif === 'skewer') terms.add('skewer');
+      if (f.motif === 'discovered_attack') terms.add('discovered attack');
+      if (f.motif === 'double_check') terms.add('double check');
+    }
+    if ((f.kind === 'mate_allowed' || f.kind === 'mate_missed') && f.backRank) terms.add('back rank');
+    if (f.kind === 'endgame_thrown') terms.add('tablebase');
+    if (f.kind === 'positional') {
+      if (f.theme === 'passed_pawn_allowed') terms.add('passed pawn');
+      if (f.theme === 'isolated_pawn') terms.add('isolated pawn');
+      if (f.theme === 'doubled_pawns') terms.add('doubled pawns');
+    }
+  }
+  return [...terms].map((t) => GLOSSARY[t]!).filter(Boolean);
 }

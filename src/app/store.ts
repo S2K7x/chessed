@@ -17,6 +17,9 @@ import {
   type GameReview,
 } from '../core/review';
 import { lichessRemote } from '../core/remote';
+import { positionFromFen, replayUci, terminalOf } from '../core/chess';
+import { clampMaiaElo, humanMoves, maiaMove } from '../engine/maia';
+import { coachExplanation, coachLevel, type CoachResult } from './coach';
 import { chesscomUserGames, lichessUserGames } from '../core/import/fetchers';
 import { positionWhiteWinPercent } from '../core/eval';
 import { db, DEFAULT_APP_SETTINGS, evalCache, loadSettings, saveSettings, type Settings } from '../db/db';
@@ -30,6 +33,29 @@ export interface RetryState {
   status: 'solving' | 'judging' | 'done';
   verdict?: AttemptVerdict;
   attempts: number;
+}
+
+export interface HumanMovesState {
+  moveIndex: number;
+  status: 'loading' | 'ready' | 'error';
+  elo: number;
+  moves?: { uci: string; san: string; probability: number }[];
+  error?: string;
+}
+
+/** Playing the position on against Maia after solving a retry. */
+export interface PlayoutState {
+  /** Positions before the current one, oldest first (Maia's history). */
+  priorFens: string[];
+  /** UCI moves played in the playout (for the last-move highlight). */
+  history: string[];
+  fen: string;
+  userColor: Color;
+  /** SAN of the moves played in the playout. */
+  sans: string[];
+  status: 'user' | 'thinking' | 'over';
+  result?: string;
+  maiaElo: number;
 }
 
 export interface LineView {
@@ -58,6 +84,12 @@ interface State {
   myColor?: Color;
   lineView?: LineView;
   retry?: RetryState;
+  /** Hints shown in the current retry (0 to 3). */
+  hintsShown: number;
+  human?: HumanMovesState;
+  playout?: PlayoutState;
+  /** Language-model explanations by move index. */
+  coachTexts: Record<number, CoachResult | 'loading'>;
 }
 
 interface Actions {
@@ -80,6 +112,50 @@ interface Actions {
   submitAttempt(uci: string): Promise<void>;
   endRetry(): void;
   dismissError(): void;
+  showHint(): void;
+  loadHumanMoves(moveIndex: number): Promise<void>;
+  startPlayout(moveIndex: number): Promise<void>;
+  playoutMove(uci: string): Promise<void>;
+  endPlayout(): void;
+  requestCoach(moveIndex: number): Promise<void>;
+}
+
+const LEVEL_ELO = { beginner: 1000, intermediate: 1500, advanced: 2000 } as const;
+
+/** Lets Maia answer in the playout, or ends it when the game is over. */
+async function maiaReply(): Promise<void> {
+  const { playout } = useStore.getState();
+  if (!playout) return;
+  const over = (fen: string) => terminalOf(positionFromFen(fen));
+  const finish = (fen: string) => {
+    const t = over(fen);
+    if (!t) return false;
+    const pos = positionFromFen(fen);
+    const result = t === 'checkmate' ? (pos.turn === playout.userColor ? 'Maia wins by checkmate.' : 'Checkmate: you win!') : 'Draw.';
+    useStore.setState({ playout: { ...useStore.getState().playout!, status: 'over', result } });
+    return true;
+  };
+  if (finish(playout.fen)) return;
+  try {
+    const uci = await maiaMove(playout.fen, playout.priorFens, playout.maiaElo, playout.maiaElo);
+    const current = useStore.getState().playout;
+    if (!current || current.fen !== playout.fen) return;
+    const [m] = replayUci(current.fen, [uci]);
+    if (!m) throw new Error('Maia suggested an illegal move.');
+    useStore.setState({
+      playout: {
+        ...current,
+        priorFens: [...current.priorFens, current.fen],
+        fen: m.fenAfter,
+        history: [...current.history, m.uci],
+        sans: [...current.sans, m.san],
+        status: 'user',
+      },
+    });
+    finish(m.fenAfter);
+  } catch (err) {
+    useStore.setState({ error: `Maia could not play: ${errorText(err)}`, playout: undefined });
+  }
 }
 
 let analysisEngine: UciEngine | undefined;
@@ -123,6 +199,8 @@ export const useStore = create<State & Actions>((set, get) => ({
   busy: false,
   cursor: 0,
   orientation: 'white',
+  hintsShown: 0,
+  coachTexts: {},
 
   async init() {
     const settings = await loadSettings();
@@ -191,6 +269,9 @@ export const useStore = create<State & Actions>((set, get) => ({
       myColor,
       lineView: undefined,
       retry: undefined,
+      human: undefined,
+      playout: undefined,
+      coachTexts: {},
       library: await refreshLibrary(),
     });
 
@@ -274,7 +355,7 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   goTo(cursor) {
     const n = get().game?.moves.length ?? 0;
-    set({ cursor: Math.max(0, Math.min(n, cursor)), lineView: undefined, retry: undefined });
+    set({ cursor: Math.max(0, Math.min(n, cursor)), lineView: undefined, retry: undefined, playout: undefined });
   },
 
   step(delta) {
@@ -311,7 +392,80 @@ export const useStore = create<State & Actions>((set, get) => ({
   },
 
   startRetry(moveIndex) {
-    set({ retry: { moveIndex, status: 'solving', attempts: 0 }, lineView: undefined, cursor: moveIndex });
+    const mover = get().game?.moves[moveIndex]?.color;
+    set({
+      retry: { moveIndex, status: 'solving', attempts: 0 },
+      hintsShown: 0,
+      lineView: undefined,
+      playout: undefined,
+      cursor: moveIndex,
+      // Practise from the side that played the move.
+      ...(mover ? { orientation: mover } : {}),
+    });
+  },
+
+  showHint() {
+    set({ hintsShown: Math.min(3, get().hintsShown + 1) });
+  },
+
+  async loadHumanMoves(moveIndex) {
+    const { game, settings, myColor } = get();
+    const move = game?.moves[moveIndex];
+    if (!game || !move) return;
+    const mover = move.color;
+    const elo = clampMaiaElo(game[mover].elo ?? LEVEL_ELO[coachLevel(settings, game, myColor)]);
+    const oppo = clampMaiaElo(game[mover === 'white' ? 'black' : 'white'].elo ?? elo);
+    set({ human: { moveIndex, status: 'loading', elo } });
+    try {
+      const prior = [game.startFen, ...game.moves.slice(0, moveIndex).map((m) => m.fenAfter)].slice(0, -1);
+      const moves = await humanMoves(move.fenBefore, prior, elo, oppo);
+      const sans = moves.map((h) => ({ ...h, san: replayUci(move.fenBefore, [h.uci])[0]?.san ?? h.uci }));
+      if (get().human?.moveIndex === moveIndex) set({ human: { moveIndex, status: 'ready', elo, moves: sans } });
+    } catch (err) {
+      set({ human: { moveIndex, status: 'error', elo, error: errorText(err) } });
+    }
+  },
+
+  async startPlayout(moveIndex) {
+    const { game, review, settings, myColor } = get();
+    const move = game?.moves[moveIndex];
+    const best = review?.moves[moveIndex]?.bestLine[0];
+    if (!game || !move || !best) return;
+    const userColor = move.color;
+    const opponent = userColor === 'white' ? 'black' : 'white';
+    const maiaElo = clampMaiaElo(game[opponent].elo ?? game[userColor].elo ?? LEVEL_ELO[coachLevel(settings, game, myColor)]);
+    const priorFens = [game.startFen, ...game.moves.slice(0, moveIndex).map((m) => m.fenAfter)];
+    set({
+      retry: undefined,
+      lineView: undefined,
+      orientation: userColor,
+      playout: { priorFens, history: [best.uci], fen: best.fenAfter, userColor, sans: [best.san], status: 'thinking', maiaElo },
+    });
+    await maiaReply();
+  },
+
+  async playoutMove(uci) {
+    const p = get().playout;
+    if (!p || p.status !== 'user') return;
+    const [m] = replayUci(p.fen, [uci]);
+    if (!m) return;
+    set({
+      playout: { ...p, priorFens: [...p.priorFens, p.fen], fen: m.fenAfter, history: [...p.history, m.uci], sans: [...p.sans, m.san], status: 'thinking' },
+    });
+    await maiaReply();
+  },
+
+  endPlayout() {
+    set({ playout: undefined });
+  },
+
+  async requestCoach(moveIndex) {
+    const { game, review, settings, myColor, coachTexts } = get();
+    const m = review?.moves[moveIndex];
+    if (!game || !m || coachTexts[moveIndex]) return;
+    set({ coachTexts: { ...coachTexts, [moveIndex]: 'loading' } });
+    const result = await coachExplanation(m, game, settings, { myColor, ...(review.opening ? { opening: review.opening.name } : {}) });
+    if (get().game?.id === game.id) set({ coachTexts: { ...get().coachTexts, [moveIndex]: result } });
   },
 
   async submitAttempt(uci) {

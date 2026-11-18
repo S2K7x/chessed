@@ -34,6 +34,8 @@ export function errorTheme(m: MoveReview): string | undefined {
       }
     case 'missed_material':
       return f.motif === 'free_capture' ? 'free material' : 'tactical chances';
+    case 'positional':
+      return { isolated_pawn: 'pawn structure', doubled_pawns: 'pawn structure', passed_pawn_allowed: 'pawn structure', king_shelter: 'king safety', knight_rim: 'piece placement', early_queen: 'opening development', undeveloped: 'opening development' }[f.theme];
     case 'eval_drop':
       return 'positional play';
   }

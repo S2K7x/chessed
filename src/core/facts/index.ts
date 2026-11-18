@@ -3,6 +3,7 @@ import { materialBalance, positionFromFen, replayUci, type SanMove } from '../ch
 import { positionPovWinPercent, povScore, type Color, type EngineLine, type PositionEval } from '../eval';
 import { attackersOf, pieceAt, staticExchange, type PieceAt } from './board';
 import { isBackRankMate, isPinnedToKing, motifOf, type Motif } from './motifs';
+import { positionalFacts, type PositionalFact } from './positional';
 
 export type { PieceAt } from './board';
 
@@ -38,6 +39,7 @@ export type Fact =
     }
   | { kind: 'endgame_thrown'; from: 'win' | 'draw'; to: 'draw' | 'loss'; bestLine: SanMove[] }
   | { kind: 'castling_lost' }
+  | PositionalFact
   | { kind: 'eval_drop'; line: SanMove[]; bestLine: SanMove[] };
 
 /** Plies of a line used to measure material: enough for an exchange or a fork. */
@@ -90,6 +92,8 @@ export interface FactContext {
   fenAfter: string;
   before: PositionEval;
   after: PositionEval;
+  /** Ply of the move (1 = White's first), for opening themes. */
+  ply?: number;
 }
 
 /** Facts explaining what a move changed, most important first. */
@@ -148,7 +152,13 @@ export function detectFacts(ctx: FactContext): Fact[] {
 
   if (lostCastling(ctx)) facts.push({ kind: 'castling_lost' });
 
-  if (!facts.some((f) => f.kind !== 'castling_lost') && bestLine && punishLine && !playedBest) {
+  if (!facts.some((f) => f.kind !== 'castling_lost') && bestLine && !playedBest) {
+    const [played] = replayUci(ctx.fenBefore, [ctx.uci]);
+    const [best] = replayUci(ctx.fenBefore, bestLine.pv, 1);
+    if (played) facts.push(...positionalFacts(played, color, ctx.ply ?? 99, best));
+  }
+
+  if (!facts.some((f) => f.kind !== 'castling_lost' && f.kind !== 'positional') && bestLine && punishLine && !playedBest) {
     facts.push({
       kind: 'eval_drop',
       line: replayUci(ctx.fenAfter, punishLine.pv, 6),

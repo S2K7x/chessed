@@ -5,6 +5,12 @@ import type { Color } from '../core/eval';
 import type { Game } from '../core/game';
 import { useStore } from '../app/store';
 import { ClassBadge } from './ClassBadge';
+import { HumanMoves } from './HumanMoves';
+import { LlmCoach } from './LlmCoach';
+import { PlayoutPanel } from './PlayoutPanel';
+import { coachAvailable, coachLevel } from '../app/coach';
+import { hintsFor } from '../core/hints';
+import { glossaryFor } from '../core/explain';
 import { CLASS_META, SUMMARY_ORDER } from './classMeta';
 
 const sideName = (c: Color) => (c === 'white' ? 'White' : 'Black');
@@ -18,9 +24,10 @@ function keyMoments(review: GameReview, myColor: Color | undefined): MoveReview[
 }
 
 export function CoachPanel({ game, review }: { game: Game; review?: GameReview }) {
-  const { cursor, progress, myColor, lineView, retry } = useStore();
-  const { goTo, showLine, stepLine, closeLine, startRetry, endRetry, toggleAutoplay, openGame } = useStore.getState();
-  const { settings } = useStore();
+  const { cursor, progress, myColor, lineView, retry, playout, hintsShown, settings } = useStore();
+  const { goTo, showLine, stepLine, closeLine, startRetry, endRetry, toggleAutoplay, openGame, showHint, startPlayout } = useStore.getState();
+  // No hooks below this point: the early returns must not change the hook order.
+  if (playout) return <PlayoutPanel />;
 
   if (lineView) {
     const { line, index } = lineView;
@@ -73,12 +80,27 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
             {v.san} does not work: {v.refutation.length > 0 ? `${formatLine(v.refutation, 4)}` : 'the position gets worse'} (winning chances {Math.round(v.winAfter)}%). Try again.
           </p>
         )}
+        {v && v.result !== 'solved' && retry.status === 'solving' && v.explanation && (
+          <p className="coach-detail">{v.explanation.summary}</p>
+        )}
+        {retry.status !== 'done' &&
+          hintsFor(m)
+            .slice(0, hintsShown)
+            .map((h, i) => (
+              <p key={i} className="hint-line">
+                <strong>Hint {i + 1}.</strong> {h.text}
+              </p>
+            ))}
         {retry.status === 'solving' && !v && <p className="coach-summary">Play a move on the board.</p>}
         <div className="coach-actions">
+          {retry.status === 'solving' && hintsShown < 3 && <button onClick={showHint}>Hint</button>}
           {retry.status !== 'done' && best && (
             <button onClick={() => showLine({ label: `Solution: ${best.san}`, fen: m.bestLine[0]!.fenBefore, moves: m.bestLine.slice(0, 8) })}>
               Show the solution
             </button>
+          )}
+          {retry.status === 'done' && best && (
+            <button onClick={() => void startPlayout(retry.moveIndex)}>Play on against Maia</button>
           )}
           {retry.status === 'done' && best && (
             <button className="primary" onClick={() => showLine({ label: `Best line: ${best.san}`, fen: best.fenBefore, moves: m.bestLine.slice(0, 8) })}>
@@ -173,6 +195,9 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
 
   const m = review.moves[cursor - 1]!;
   const ex = m.explanation;
+  const important = ERROR_CLASSES.has(m.assessment.classification) || m.assessment.classification === 'great' || m.assessment.classification === 'brilliant';
+  const llm = important && coachAvailable(settings);
+  const beginner = coachLevel(settings, game, myColor) === 'beginner';
   return (
     <section className="coach" aria-live="polite">
       {refining}
@@ -183,6 +208,8 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
         {m.timeTrouble ? <span className="tag tag-warn">time trouble</span> : null}
       </p>
       <h2 className="coach-title">{ex.title}</h2>
+      {llm && <LlmCoach moveIndex={cursor - 1} />}
+      {llm && <p className="coach-kicker small-kicker">Engine facts</p>}
       <p className="coach-summary">{ex.summary}</p>
       {ex.details.map((d, i) => (
         <p key={i} className="coach-detail">{d}</p>
@@ -192,10 +219,16 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
           <strong>Better: {ex.better.san}.</strong> {ex.better.text}
         </p>
       )}
-      {ex.lesson && (
+      {ex.lesson && !llm && (
         <p className="coach-lesson">
           <strong>Lesson.</strong> {ex.lesson}
         </p>
+      )}
+      {beginner && glossaryFor(m.facts).map((g) => (
+        <p key={g} className="glossary small">{g}</p>
+      ))}
+      {ERROR_CLASSES.has(m.assessment.classification) && (
+        <HumanMoves moveIndex={cursor - 1} playedUci={m.uci} {...(m.bestLine[0] ? { bestUci: m.bestLine[0].uci } : {})} />
       )}
       <div className="coach-actions">
         {canRetry(m, myColor) && (
