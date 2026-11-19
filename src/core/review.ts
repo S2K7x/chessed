@@ -6,6 +6,7 @@ import { positionWhiteWinPercent, type Color, type PositionEval } from './eval';
 import { explainMove, type Explanation } from './explain';
 import { detectFacts, type Fact } from './facts';
 import { findSacrifice } from './facts/sacrifice';
+import { tacticalOpportunity } from './facts/opportunity';
 import type { Game } from './game';
 import { isBookPosition, openingAt, type OpeningBook } from './openings';
 import { phasesOf, type Phase } from './phase';
@@ -32,6 +33,12 @@ export interface MoveReview {
   facts: Fact[];
   explanation: Explanation;
   isKeyMoment: boolean;
+  /**
+   * The tactic the mover had before this move (as named in the progress
+   * dashboard), null when none; computed once here so that the dashboard does
+   * not replay every line. Absent in reviews made before it was stored.
+   */
+  opportunity?: string | null;
   /** "tactical" when a concrete fact (mate, material) explains the loss. */
   errorKind?: 'tactical' | 'positional';
   /** Mover's clock after the move, when the PGN has clocks. */
@@ -226,6 +233,8 @@ export function buildReview(
       isKeyMoment: false,
       timeTrouble: false,
     };
+    const c = assessment.classification;
+    if (c !== 'book' && c !== 'forced') review.opportunity = tacticalOpportunity({ color: m.color, bestLine }, before) ?? null;
     if (isError) {
       review.errorKind = facts.some((f) => f.kind !== 'eval_drop' && f.kind !== 'castling_lost' && f.kind !== 'positional')
         ? 'tactical'

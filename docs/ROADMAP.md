@@ -91,3 +91,42 @@ Tried and not adopted:
   positions between the two orders (single-threaded search is deterministic only
   for a given hash state). No clear gain; the second, deeper pass on critical
   moments is what makes results stable.
+
+## Performance work (measured)
+
+Measured on this project's test machine (4 cores, Chromium, production build;
+medians of 3 runs).
+
+Done:
+
+- **Progress dashboard.** Naming the tactic you had before each move replayed
+  the engine's line for every move of every game on each visit: 571 ms for 201
+  games. It is now computed once during the analysis and stored on the move
+  (`MoveReview.opportunity`); older reviews compute it once per session.
+  Profile computation: 571 ms → 11 ms. The last dashboard also stays on screen
+  while it refreshes, so a repeat visit takes 35–56 ms instead of 0.8–1.1 s.
+- **First load.** The secondary screens (Progress, Training, Woodpecker,
+  Endgames, Guess the move, Settings), the master games and the
+  spaced-repetition scheduler (ts-fsrs) load on demand. Main bundle: 638 KB →
+  547 KB (gzip 204 KB → 176 KB, −14%). They are fetched while the browser is
+  idle, so the service worker still caches everything for offline use (covered
+  by the offline end-to-end test).
+
+Measured and left as is:
+
+- **React re-renders.** Every component subscribes to the whole store, which
+  the Zustand docs advise against. Measured: 104 commits and 250 ms of script
+  over a 60 s analysis, 1.5 ms per move when stepping through a game. Not a
+  bottleneck; components can move to selectors when they are next changed.
+- **A second engine line only where needed.** MultiPV 2 costs 2.8–2.9× MultiPV 1
+  at depth 14, and the second line only matters when the move played is the
+  engine's top move (Great, Brilliant). Searching with one line and again with
+  two only for those moves saved 3% of the total time on 4 master games (about
+  half of master moves are top moves, and the deeper second pass dominates),
+  while changing 59 of 291 classifications through search noise. Not adopted.
+- **Storing lines compactly.** Lines stored as a starting FEN plus UCI moves
+  shrink a review by 63% (250 KB → 90 KB a game), but rebuilding them costs
+  about 24 ms a game, which would make the dashboard slower. Not adopted;
+  IndexedDB reads 201 reviews in about 50 ms.
+- **Engine settings** already follow the Stockfish FAQ: threads = cores − 1, a
+  64 MB hash, no hash clearing between positions.

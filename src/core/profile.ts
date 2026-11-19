@@ -1,10 +1,6 @@
-import { parseSquare } from 'chessops/util';
-import { positionFromFen } from './chess';
 import { ERROR_CLASSES } from './classify';
 import { povScore, type Color } from './eval';
-import { lineMaterial } from './facts';
-import { staticExchange } from './facts/board';
-import { motifOf } from './facts/motifs';
+import { tacticalOpportunity } from './facts/opportunity';
 import type { Game } from './game';
 import type { Phase } from './phase';
 import type { GameReview, MoveReview } from './review';
@@ -71,26 +67,27 @@ const MIN_TREND_GAMES = 6;
 
 const dateOf = (e: ProfileEntry) => e.game.date ?? new Date(e.game.importedAt).toISOString().slice(0, 10);
 
-/** The tactic available to the mover before this move, if the engine's best line wins material or mates. */
-export function tacticalOpportunity(m: MoveReview, before: GameReview['evals'][number]): string | undefined {
-  const best = before.lines[0];
-  if (!best || before.terminal) return undefined;
-  const mate = povScore(best.score, m.color).mate;
-  if (mate !== undefined && mate > 0) return 'missed checkmates';
-  const first = m.bestLine[0];
-  if (!first) return undefined;
-  const won = lineMaterial(first.fenBefore, best.pv, m.color);
-  if (won.delta < 2) return undefined;
-  const pattern = motifOf(first);
-  if (pattern) {
-    return { fork: 'forks', skewer: 'skewers', discovered_attack: 'discovered attacks', double_check: 'discovered attacks' }[pattern.kind];
+export { tacticalOpportunity } from './facts/opportunity';
+
+/**
+ * The tactical opportunity before move `i`: stored at analysis time, or
+ * computed (and kept for the session) for reviews made before it was stored.
+ */
+const opportunityMemo = new Map<string, (string | null)[]>();
+function opportunityOf(review: GameReview, i: number): string | undefined {
+  const m = review.moves[i]!;
+  if (m.opportunity !== undefined) return m.opportunity ?? undefined;
+  const key = `${review.createdAt}|${review.engineId}|${review.moves.length}|${review.moves[0]?.uci ?? ''}`;
+  let memo = opportunityMemo.get(key);
+  if (!memo) {
+    memo = [];
+    opportunityMemo.set(key, memo);
   }
-  if (first.san.includes('x')) {
-    const pos = positionFromFen(first.fenBefore);
-    const to = parseSquare(first.uci.slice(2, 4))!;
-    if (staticExchange(pos, to, pos.turn) >= 2) return 'free material';
+  if (memo[i] === undefined) {
+    const before = review.evals[i];
+    memo[i] = (before ? tacticalOpportunity(m, before) : undefined) ?? null;
   }
-  return 'tactical chances';
+  return memo[i] ?? undefined;
 }
 
 interface Counter {
@@ -117,9 +114,8 @@ function themeCounts(entries: ProfileEntry[]): Map<string, Counter> {
       if (m.color !== color) return;
       const c = m.assessment.classification;
       if (c === 'book' || c === 'forced') return;
-      const before = review.evals[i];
       const isError = ERROR_CLASSES.has(c);
-      const opportunity = before ? tacticalOpportunity(m, before) : undefined;
+      const opportunity = opportunityOf(review, i);
       if (opportunity) {
         bump(opportunity, 'missed', 'opportunities');
         if (isError) bump(opportunity, 'missed', 'errors', m.assessment.winLoss, m.explanation.lesson);

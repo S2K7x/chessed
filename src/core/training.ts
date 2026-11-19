@@ -1,4 +1,3 @@
-import { DefaultScheduler, Rating } from 'ts-fsrs';
 import type { Color } from './eval';
 import type { Game } from './game';
 import type { GameReview } from './review';
@@ -42,8 +41,19 @@ export type TrainingGrade = 'again' | 'hard' | 'good' | 'easy';
 
 const EXERCISE_CLASSES = new Set(['mistake', 'miss', 'blunder']);
 
-let scheduler: ReturnType<typeof DefaultScheduler> | undefined;
-const getScheduler = () => (scheduler ??= DefaultScheduler({ enableFuzz: false, desiredRetention: 0.9 }));
+type FsrsModule = typeof import('ts-fsrs');
+let fsrs: Promise<{ scheduler: Awaited<ReturnType<FsrsModule['DefaultScheduler']>>; Rating: FsrsModule['Rating'] }> | undefined;
+/** The scheduler, loaded on first use (it is not needed to open the app or review a game). */
+const getFsrs = () =>
+  (fsrs ??= import('ts-fsrs').then(async (m) => ({
+    scheduler: await m.DefaultScheduler({ enableFuzz: false, desiredRetention: 0.9 }),
+    Rating: m.Rating,
+  })));
+const getScheduler = async () => (await getFsrs()).scheduler;
+/** Loads the scheduler ahead of time (for offline use). */
+export const preloadScheduler = async (): Promise<void> => {
+  await getFsrs();
+};
 
 /** New exercises from a review (one per mistake, miss or blunder of `color`). */
 export async function exercisesFromReview(game: Game, review: GameReview, color: Color, now = new Date()): Promise<Exercise[]> {
@@ -105,11 +115,11 @@ export function gradeAttempt(a: { solved: boolean; hints: number; wrong: number;
   return a.seconds <= 15 ? 'easy' : 'good';
 }
 
-const RATING = { again: Rating.Again, hard: Rating.Hard, good: Rating.Good, easy: Rating.Easy } as const;
 
 /** Schedules the next review of an exercise after an attempt. */
 export async function review(ex: Exercise, grade: TrainingGrade, hints: number, wrong: number, now = new Date()): Promise<Exercise> {
-  const s = await getScheduler();
+  const { scheduler: s, Rating } = await getFsrs();
+  const RATING = { again: Rating.Again, hard: Rating.Hard, good: Rating.Good, easy: Rating.Easy } as const;
   // Stored cards come back from IndexedDB or JSON: restore the Date fields.
   const last = ex.card.lastReviewAt;
   const card = { ...ex.card, dueAt: new Date(ex.card.dueAt), lastReviewAt: last ? new Date(last as string | Date) : null };

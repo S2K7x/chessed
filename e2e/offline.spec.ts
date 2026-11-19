@@ -24,6 +24,15 @@ test('the app installs and reviews a game offline', async ({ page, context }, in
   await page.getByRole('button', { name: 'Analyse' }).click();
   await expect(page.getByText('Game summary')).toBeVisible({ timeout: 90_000 });
   await expect(page.locator('.movelist-cell').first()).toBeVisible();
+  // Screens loaded on demand were prefetched while idle: they open offline too.
+  await page.locator('.nav').getByRole('button', { name: 'Training' }).click();
+  await page.getByRole('button', { name: 'Guess the move' }).click();
+  await page.locator('.guess-list li').first().getByRole('button', { name: /\(White\)/ }).click();
+  await expect(page.getByRole('heading', { name: /^What did .+ play\?$/ })).toBeVisible();
+  await page.locator('.nav').getByRole('button', { name: 'Progress' }).click();
+  await expect(page.getByText(/Your progress|Add your Lichess/).first()).toBeVisible();
+  await page.locator('.nav').getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByLabel('Lichess username')).toBeVisible();
   // Mark the cross-origin isolation: still on after an offline reload.
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
   await context.setOffline(false);

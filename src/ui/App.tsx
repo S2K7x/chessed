@@ -1,14 +1,37 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useStore } from '../app/store';
 import { requestPersistence } from '../db/db';
+import { preloadScheduler } from '../core/training';
 import { HomeView } from './HomeView';
 import { ReviewView } from './ReviewView';
-import { SettingsView } from './SettingsView';
-import { ProgressView } from './ProgressView';
-import { TrainingView } from './TrainingView';
-import { WoodpeckerView } from './WoodpeckerView';
-import { EndgamesView } from './EndgamesView';
-import { GuessView } from './GuessView';
+
+// Screens other than the game list and the review load on first use, and are
+// fetched while the browser is idle so that the service worker caches them for
+// offline use.
+const loaders = {
+  settings: () => import('./SettingsView'),
+  progress: () => import('./ProgressView'),
+  training: () => import('./TrainingView'),
+  woodpecker: () => import('./WoodpeckerView'),
+  endgames: () => import('./EndgamesView'),
+  guess: () => import('./GuessView'),
+};
+const SettingsView = lazy(() => loaders.settings().then((m) => ({ default: m.SettingsView })));
+const ProgressView = lazy(() => loaders.progress().then((m) => ({ default: m.ProgressView })));
+const TrainingView = lazy(() => loaders.training().then((m) => ({ default: m.TrainingView })));
+const WoodpeckerView = lazy(() => loaders.woodpecker().then((m) => ({ default: m.WoodpeckerView })));
+const EndgamesView = lazy(() => loaders.endgames().then((m) => ({ default: m.EndgamesView })));
+const GuessView = lazy(() => loaders.guess().then((m) => ({ default: m.GuessView })));
+
+function prefetchWhenIdle() {
+  const run = () => {
+    for (const load of Object.values(loaders)) void load().catch(() => undefined);
+    void import('../data/masterGames.json').catch(() => undefined);
+    void preloadScheduler().catch(() => undefined);
+  };
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 5000 });
+  else setTimeout(run, 2000);
+}
 
 export function App() {
   const { view, error, settings, game, dueCount } = useStore();
@@ -17,6 +40,7 @@ export function App() {
   useEffect(() => {
     void init();
     void requestPersistence();
+    prefetchWhenIdle();
   }, [init]);
 
   useEffect(() => {
@@ -50,6 +74,7 @@ export function App() {
         </div>
       )}
       <main className="main">
+        <Suspense fallback={<p className="muted">Loading…</p>}>
         {view === 'home' && <HomeView />}
         {view === 'review' && <ReviewView />}
         {view === 'progress' && <ProgressView />}
@@ -58,6 +83,7 @@ export function App() {
         {view === 'endgames' && <EndgamesView />}
         {view === 'guess' && <GuessView />}
         {view === 'settings' && <SettingsView />}
+        </Suspense>
       </main>
     </div>
   );

@@ -9,6 +9,8 @@ import type { GameReview, MoveReview } from './review';
 import { evalOf } from './testing/fixtures';
 import { dueExercises, exercisesFromReview, gradeAttempt, review as reviewExercise } from './training';
 import { parseGame } from './pgn';
+import { analyseGame } from './review';
+import type { Evaluator } from './engine';
 
 const FORK: Fact = {
   kind: 'material_lost',
@@ -98,6 +100,27 @@ describe('tacticalOpportunity', () => {
     expect(tacticalOpportunity(mm, evalOf(mateFen, [{ score: { mate: 1 }, pv: ['a1a8'] }]))).toBe('missed checkmates');
     const quiet = { ...mv(1, 'best'), bestLine: replayUci(mateFen, ['g1f1']) };
     expect(tacticalOpportunity(quiet, evalOf(mateFen, [{ score: { cp: 30 }, pv: ['g1f1'] }]))).toBeUndefined();
+  });
+});
+
+describe('stored opportunities', () => {
+  it('uses the opportunity stored at analysis time instead of replaying lines', () => {
+    // No engine lines at all: only the stored value can name the tactic.
+    const missed = { ...mv(1, 'mistake', { loss: 20 }), opportunity: 'forks' };
+    const found = { ...mv(3, 'best'), opportunity: 'forks' };
+    const none = { ...mv(5, 'best'), opportunity: null };
+    const p = computeProfile([entry('s', '2026-02-01', '1-0', [missed, found, none])]);
+    expect(p.themes.find((t) => t.theme === 'forks')).toMatchObject({ kind: 'missed', errors: 1, opportunities: 2 });
+  });
+
+  it('is filled in by the analysis', async () => {
+    const game = parseGame('1. e4 e5 2. Nf3 Nc6 *');
+    const flat: Evaluator = {
+      id: 'flat',
+      evaluate: async (fen) => evalOf(fen, [{ score: { cp: 0 }, pv: [] }]),
+    };
+    const review = await analyseGame(game, flat, {}, { depth: 20, multiPv: 1 });
+    expect(review.moves.every((m) => m.opportunity === null)).toBe(true);
   });
 });
 

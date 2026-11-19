@@ -39,7 +39,6 @@ import {
   type WoodpeckerSet,
 } from '../core/woodpecker';
 import { GUESS_POINTS, guessIndices, guessScore, guessVerdict, type GuessResult } from '../core/guess';
-import masterGames from '../data/masterGames.json';
 import type { GuessRecord } from '../db/db';
 import { endgameDrills, playEndgameMove, startEndgame, type EndgameAttempt, type EndgameDrill, type EndgameSession } from '../core/endgame';
 import { chesscomUserGames, lichessUserGames } from '../core/import/fetchers';
@@ -653,7 +652,8 @@ export const useStore = create<State & Actions>((set, get) => ({
     set({ error: undefined });
   },
   async loadProfile() {
-    set({ profile: 'loading' });
+    // The last profile stays on screen while it is recomputed (a fraction of a second).
+    if (!get().profile) set({ profile: 'loading' });
     const settings = get().settings;
     const games = await db.games.toArray();
     const reviews = new Map((await db.reviews.toArray()).map((r) => [r.gameId, r.review]));
@@ -888,6 +888,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     let sourceId: string;
     try {
       if ('id' in source) {
+        const masterGames = (await import('../data/masterGames.json')).default;
         const entry = masterGames.find((m) => m.id === source.id);
         if (!entry) return;
         game = parseGames(entry.pgn)[0]!;
