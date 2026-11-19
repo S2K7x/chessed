@@ -16,17 +16,45 @@ export function engineThreads(): number {
 export function createBrowserEngine(): UciEngine {
   const threads = engineThreads();
   const file = threads > 1 ? 'stockfish-19-lite.js' : 'stockfish-19-lite-single.js';
-  const worker = new Worker(`${import.meta.env.BASE_URL}engine/${file}`);
+  const url = `${import.meta.env.BASE_URL}engine/${file}`;
+  const worker = new Worker(url);
   let listener: (line: string) => void = () => {};
+  let onError: (err: Error) => void = () => {};
   worker.onmessage = (e: MessageEvent<unknown>) => {
     if (typeof e.data === 'string') listener(e.data);
+  };
+  worker.onerror = (e) => {
+    e.preventDefault();
+    void diagnose(url, e.message).then((err) => onError(err));
   };
   const transport: UciTransport = {
     send: (cmd) => worker.postMessage(cmd),
     onLine: (l) => {
       listener = l;
     },
+    onError: (l) => {
+      onError = l;
+    },
     terminate: () => worker.terminate(),
   };
-  return new UciEngine(transport, ENGINE_ID, threads > 1 ? { Threads: threads, Hash: 64 } : { Hash: 32 });
+  return new UciEngine(transport, ENGINE_ID, threads > 1 ? { Threads: threads, Hash: 64 } : { Hash: 32 }, {
+    // Compiling the WASM takes a second or two; a minute means it is stuck.
+    startupTimeoutMs: 60_000,
+  });
+}
+
+export const ENGINE_MISSING =
+  'The chess engine files are missing. If you run Chess Coach from its source code, run "npm install" again in the project folder: it copies Stockfish into public/engine. Then reload this page.';
+
+/** Why the engine worker failed: its file is missing (served as a page, or 404), or it broke while starting. */
+async function diagnose(url: string, message: string): Promise<Error> {
+  try {
+    const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+    const type = res.headers.get('content-type') ?? '';
+    if (!res.ok || type.includes('text/html')) return new Error(ENGINE_MISSING);
+  } catch {
+    // Offline and not cached: the same remedy applies once back online.
+    return new Error('The chess engine could not be loaded. Check your connection (or that Chess Coach is still running), then reload this page.');
+  }
+  return new Error(`The chess engine could not start in this browser${message ? ` (${message})` : ''}. Try reloading the page, or another browser.`);
 }

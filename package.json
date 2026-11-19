@@ -5,8 +5,13 @@
   "description": "Personal chess game review and coaching app: local Stockfish analysis, verified explanations, training from your own mistakes.",
   "license": "GPL-3.0-or-later",
   "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
   "scripts": {
+    "preinstall": "node scripts/preflight.mjs",
     "postinstall": "node scripts/copy-engine.mjs",
+    "start": "node scripts/preflight.mjs --engine && node scripts/start.mjs",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",

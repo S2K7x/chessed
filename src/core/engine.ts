@@ -7,7 +7,14 @@ import { parseBestMove, parseInfo, type UciInfo } from './uci';
 export interface UciTransport {
   send(command: string): void;
   onLine(listener: (line: string) => void): void;
+  /** Reports a transport that broke (worker failed to load, process exited...). */
+  onError?(listener: (err: Error) => void): void;
   terminate(): void;
+}
+
+export interface EngineStartOptions {
+  /** Give up when the engine has not answered `uci` within this time. */
+  startupTimeoutMs?: number;
 }
 
 export interface SearchOptions {
@@ -42,24 +49,41 @@ export class UciEngine implements Evaluator {
   private queue: Job[] = [];
   private current: Job | undefined;
   private lines = new Map<number, UciInfo>();
-  private waiters: { token: string; resolve: () => void }[] = [];
+  private waiters: { token: string; resolve: () => void; reject: (err: Error) => void }[] = [];
   private multiPv = 1;
   private disposed = false;
+  private failure: Error | undefined;
 
-  constructor(transport: UciTransport, id: string, options: Record<string, string | number> = {}) {
+  constructor(transport: UciTransport, id: string, options: Record<string, string | number> = {}, start: EngineStartOptions = {}) {
     this.transport = transport;
     this.id = id;
     transport.onLine((line) => this.handle(line));
+    transport.onError?.((err) => this.fail(err));
+    const timer =
+      start.startupTimeoutMs !== undefined
+        ? setTimeout(() => this.fail(new Error('The chess engine did not start in time.')), start.startupTimeoutMs)
+        : undefined;
     this.ready = (async () => {
       await this.command('uci', 'uciok');
+      if (timer !== undefined) clearTimeout(timer);
       for (const [name, value] of Object.entries(options)) {
         transport.send(`setoption name ${name} value ${value}`);
       }
       await this.command('isready', 'readyok');
     })();
+    // Failures reach the searches waiting on `ready`; none may be waiting yet.
+    this.ready.catch(() => {
+      if (timer !== undefined) clearTimeout(timer);
+    });
+  }
+
+  /** The engine broke (could not load, or stopped answering at startup): create a new one. */
+  get failed(): boolean {
+    return this.failure !== undefined;
   }
 
   evaluate(fen: string, opts: SearchOptions, onProgress?: (e: PositionEval) => void): Promise<PositionEval> {
+    if (this.failure) return Promise.reject(this.failure);
     if (this.disposed) return Promise.reject(new Error('engine disposed'));
     // Stockfish aborts on illegal positions: validate before sending.
     const setup = parseFen(fen);
@@ -87,10 +111,22 @@ export class UciEngine implements Evaluator {
   }
 
   private command(cmd: string, token: string): Promise<void> {
-    return new Promise((resolve) => {
-      this.waiters.push({ token, resolve });
+    if (this.failure) return Promise.reject(this.failure);
+    return new Promise((resolve, reject) => {
+      this.waiters.push({ token, resolve, reject });
       this.transport.send(cmd);
     });
+  }
+
+  /** Rejects every pending command and search with `err`; later calls fail at once. */
+  private fail(err: Error): void {
+    if (this.failure || this.disposed) return;
+    this.failure = err;
+    for (const w of this.waiters.splice(0)) w.reject(err);
+    const jobs = [...(this.current ? [this.current] : []), ...this.queue.splice(0)];
+    this.current = undefined;
+    for (const job of jobs) job.reject(err);
+    this.transport.terminate();
   }
 
   private async pump(): Promise<void> {
