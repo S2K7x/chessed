@@ -64,6 +64,8 @@ export interface Settings {
   lichessToken: string;
   /** Positions to train each day. */
   dailyGoal: number;
+  /** Visualization training: the pieces of training positions are hidden after a few seconds. */
+  blindfold: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: Settings = {
@@ -80,6 +82,7 @@ export const DEFAULT_APP_SETTINGS: Settings = {
   coachToken: '',
   lichessToken: '',
   dailyGoal: 10,
+  blindfold: false,
 };
 
 class CoachDb extends Dexie {

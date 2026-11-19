@@ -11,6 +11,7 @@ const THROWN = `[White "learner"]
 1. Qb1 Rxb1+ 0-1`;
 
 async function clickSquare(page: Page, square: string) {
+  await expect(page.locator('cg-board')).toBeVisible();
   const box = (await page.locator('cg-board').boundingBox())!;
   const size = box.width / 8;
   const file = square.charCodeAt(0) - 97;

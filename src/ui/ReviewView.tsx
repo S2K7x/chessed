@@ -12,10 +12,12 @@ import { positionFromFen, terminalOf } from '../core/chess';
 import { formatClock } from '../core/review';
 import type { Game } from '../core/game';
 import { Icon } from './icons';
+import { ExplorePanel } from './ExplorePanel';
 
 export function ReviewView() {
-  const { game, review, cursor, orientation, lineView, retry, liveWins, myColor, playout, hintsShown, showThreats, threats } = useStore();
-  const { goTo, step, flip, closeLine, endRetry, submitAttempt, toggleAutoplay, stepLine, playoutMove, endPlayout, toggleThreats, loadThreat } = useStore.getState();
+  const { game, review, cursor, orientation, lineView, retry, liveWins, myColor, playout, hintsShown, showThreats, threats, explore, explorations } = useStore();
+  const { goTo, step, flip, closeLine, endRetry, submitAttempt, toggleAutoplay, stepLine, playoutMove, endPlayout, toggleThreats, loadThreat, exploreMove, endExplore, loadExploration } =
+    useStore.getState();
 
   // Autoplay of a line: one move every 900 ms.
   const playing = lineView?.playing ?? false;
@@ -39,10 +41,11 @@ export function ReviewView() {
         if (lineView) closeLine();
         else if (playout) endPlayout();
         else if (retry) endRetry();
+        else if (explore) endExplore();
       } else return;
       e.preventDefault();
     },
-    [lineView, retry, playout, step, goTo, flip, closeLine, endRetry, endPlayout, toggleAutoplay, toggleThreats],
+    [lineView, retry, playout, explore, step, goTo, flip, closeLine, endRetry, endPlayout, endExplore, toggleAutoplay, toggleThreats],
   );
   useEffect(() => {
     window.addEventListener('keydown', onKey);
@@ -67,6 +70,15 @@ export function ReviewView() {
     if (playout) {
       const last = playout.history[playout.history.length - 1];
       return { fen: playout.fen, lastMove: last, arrows: [] as Arrow[], evalIndex: undefined, interactive: playout.status === 'user', playout: true };
+    }
+    if (explore) {
+      const played = explore.moves[explore.index - 1];
+      const start = explore.fromCursor > 0 ? game.moves[explore.fromCursor - 1]!.fenAfter : game.startFen;
+      const fen = played ? played.fenAfter : start;
+      const e = explorations[fen];
+      const best = e && typeof e === 'object' && 'lines' in e ? e.lines[0]?.pv[0] : undefined;
+      const arrows: Arrow[] = best ? [{ from: best.slice(0, 2), to: best.slice(2, 4), brush: 'best' }] : [];
+      return { fen, lastMove: played?.uci ?? game.moves[explore.fromCursor - 1]?.uci, arrows, evalIndex: undefined, interactive: true, explore: true };
     }
     if (lineView) {
       const { line, index } = lineView;
@@ -95,8 +107,14 @@ export function ReviewView() {
     }
     const m = game.moves[cursor - 1];
     const arrows = cursor > 0 ? review?.moves[cursor - 1]?.explanation.arrows.filter((a) => a.brush !== 'played') ?? [] : [];
-    return { fen: m ? m.fenAfter : game.startFen, lastMove: m?.uci, arrows, evalIndex: cursor };
-  }, [game, review, cursor, lineView, retry, playout, hintsShown]);
+    // Any move played on the board starts an exploration from here.
+    return { fen: m ? m.fenAfter : game.startFen, lastMove: m?.uci, arrows, evalIndex: cursor, interactive: true };
+  }, [game, review, cursor, lineView, retry, playout, hintsShown, explore, explorations]);
+
+  const exploreFen = explore && board ? board.fen : undefined;
+  useEffect(() => {
+    if (exploreFen) void loadExploration(exploreFen);
+  }, [exploreFen, loadExploration]);
 
   // The opponent's threat in the position shown (null-move search), on demand.
   const threatFen = showThreats && board && !retry && !playout ? board.fen : undefined;
@@ -110,12 +128,19 @@ export function ReviewView() {
       : [];
 
   const onMove = useCallback(
-    (uci: string) => void (useStore.getState().playout ? playoutMove(uci) : submitAttempt(uci)),
-    [submitAttempt, playoutMove],
+    (uci: string) => {
+      const st = useStore.getState();
+      if (st.playout) void playoutMove(uci);
+      else if (st.retry) void submitAttempt(uci);
+      else exploreMove(uci);
+    },
+    [submitAttempt, playoutMove, exploreMove],
   );
 
   if (!game || !board) return null;
-  const evaluation = board.evalIndex !== undefined ? review?.evals[board.evalIndex] : undefined;
+  const explored = exploreFen ? explorations[exploreFen] : undefined;
+  const evaluation =
+    board.evalIndex !== undefined ? review?.evals[board.evalIndex] : explored && typeof explored === 'object' && 'lines' in explored ? explored : undefined;
   const { exportAnnotatedPgn, setView } = useStore.getState();
   const atEnd = !retry && !playout && !lineView && cursor >= game.moves.length;
   const top = orientation === 'white' ? game.black : game.white;
@@ -183,7 +208,7 @@ export function ReviewView() {
       </div>
       <aside className="review-side">
         <GameHeader />
-        <CoachPanel game={game} review={review} />
+        {explore ? <ExplorePanel fen={board.fen} /> : <CoachPanel game={game} review={review} />}
         <MoveList game={game} moves={review?.moves} cursor={cursor} onSelect={goTo} {...(review ? { onExport: exportAnnotatedPgn } : {})} />
       </aside>
     </div>

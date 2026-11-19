@@ -47,6 +47,11 @@ mistakes, and practise the positions where you went wrong.
 - **Analyse your latest games in one go.** Your last 20 Lichess or Chess.com
   games are analysed one after the other in the background while you keep
   reviewing.
+- **Explore freely.** Play any move on the review board: Stockfish evaluates
+  each position of your variation and shows its best line.
+- **Blindfold training.** An option hides the pieces of training positions
+  after five seconds (visualization practice); answer from memory, with a
+  peek allowed.
 - **Keyboard and accessibility.** Moves can be typed (Nf3, e2e4) on any board
   that expects one; the main screens are checked with axe-core (WCAG 2.1 AA)
   in both themes.

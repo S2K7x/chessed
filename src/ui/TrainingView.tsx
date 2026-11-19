@@ -3,6 +3,7 @@ import { useStore } from '../app/store';
 import { formatLine, type Arrow } from '../core/explain';
 import { hintsFor, threatHintsFor } from '../core/hints';
 import { Board } from './Board';
+import { useBlindfold } from './Blindfold';
 import { ClassBadge } from './ClassBadge';
 import type { Classification } from '../core/classify';
 
@@ -39,6 +40,8 @@ export function TrainingView() {
   }, [training, move, isThreat, hintsOf]);
 
   const onMove = useCallback((uci: string) => void trainingAttempt(uci), [trainingAttempt]);
+  const solvingNow = training?.status === 'solving' || training?.status === 'judging';
+  const blindfold = useBlindfold(solvingNow && ex ? ex.id : undefined);
 
   if (!training) {
     return (
@@ -122,7 +125,8 @@ export function TrainingView() {
           fen={ex.fen}
           orientation={playerColor}
           {...(isThreat && move ? { lastMove: move.uci } : {})}
-          arrows={arrows} {...(solving && training.status === 'solving' ? { onMove } : {})} />
+          arrows={arrows}
+          blind={blindfold.hidden && solving} {...(solving && training.status === 'solving' ? { onMove } : {})} />
       </div>
       <aside className="training-side">
         <section className="coach" aria-live="polite">
@@ -177,6 +181,7 @@ export function TrainingView() {
               )}
             </>
           )}
+          {solving && blindfold.controls}
           <div className="coach-actions">
             {solving && training.hints < 3 && <button onClick={trainingHint}>Hint</button>}
             {solving && <button onClick={() => void trainingGiveUp()}>Show the answer</button>}

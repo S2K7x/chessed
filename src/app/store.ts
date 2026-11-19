@@ -117,6 +117,10 @@ interface State {
   orientation: Color;
   myColor?: Color;
   lineView?: LineView;
+  /** Free exploration from a position of the game: moves played on the board. */
+  explore?: ExploreState;
+  /** Engine evaluations of explored positions, by FEN. */
+  explorations: Record<string, PositionEval | 'loading' | { error: string }>;
   retry?: RetryState;
   /** Hints shown in the current retry (0 to 3). */
   hintsShown: number;
@@ -144,6 +148,14 @@ interface State {
   today?: ActivityDay;
   /** Every day with activity (loaded with the progress dashboard). */
   activity?: ActivityDay[];
+}
+
+export interface ExploreState {
+  /** The game position the exploration started from (a cursor). */
+  fromCursor: number;
+  moves: SanMove[];
+  /** Moves of the exploration shown on the board (0 = the starting position). */
+  index: number;
 }
 
 /** The opening trainer, built from the player's games. */
@@ -313,6 +325,10 @@ interface Actions {
   importBackup(file: File): Promise<void>;
   loadExplorer(fen: string, source: 'masters' | 'lichess'): Promise<void>;
   toggleThreats(): void;
+  /** Plays a move on the review board, starting or extending an exploration. */
+  exploreMove(uci: string): void;
+  endExplore(): void;
+  loadExploration(fen: string): Promise<void>;
   loadThreat(fen: string): Promise<void>;
   exportAnnotatedPgn(): void;
   connectLichess(): Promise<void>;
@@ -460,6 +476,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   coachTexts: {},
   dueCount: 0,
   explorer: {},
+  explorations: {},
   showThreats: false,
   threats: {},
 
@@ -547,6 +564,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       orientation: myColor ?? 'white',
       myColor,
       lineView: undefined,
+      explore: undefined,
       retry: undefined,
       human: undefined,
       playout: undefined,
@@ -638,13 +656,54 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   goTo(cursor) {
     const n = get().game?.moves.length ?? 0;
-    set({ cursor: Math.max(0, Math.min(n, cursor)), lineView: undefined, retry: undefined, playout: undefined });
+    set({ cursor: Math.max(0, Math.min(n, cursor)), lineView: undefined, retry: undefined, playout: undefined, explore: undefined });
   },
 
   step(delta) {
     const lv = get().lineView;
     if (lv) return get().stepLine(delta);
+    const ex = get().explore;
+    if (ex) {
+      set({ explore: { ...ex, index: Math.max(0, Math.min(ex.moves.length, ex.index + delta)) } });
+      return;
+    }
     get().goTo(get().cursor + delta);
+  },
+
+  exploreMove(uci) {
+    const { game, cursor } = get();
+    if (!game) return;
+    const ex = get().explore ?? { fromCursor: cursor, moves: [], index: 0 };
+    const startFen = ex.fromCursor > 0 ? game.moves[ex.fromCursor - 1]!.fenAfter : game.startFen;
+    const fen = ex.index > 0 ? ex.moves[ex.index - 1]!.fenAfter : startFen;
+    const [m] = replayUci(fen, [uci]);
+    if (!m) return;
+    // The same move as the one already explored next: just step forward.
+    if (ex.moves[ex.index]?.uci === m.uci) {
+      set({ explore: { ...ex, index: ex.index + 1 } });
+      return;
+    }
+    set({ explore: { ...ex, moves: [...ex.moves.slice(0, ex.index), m], index: ex.index + 1 }, lineView: undefined });
+  },
+
+  endExplore() {
+    set({ explore: undefined });
+  },
+
+  async loadExploration(fen) {
+    const { explorations, settings } = get();
+    if (explorations[fen]) return;
+    set({ explorations: { ...explorations, [fen]: 'loading' } });
+    try {
+      const pos = positionFromFen(fen);
+      const terminal = terminalOf(pos);
+      const e: PositionEval = terminal
+        ? { fen, turn: pos.turn, terminal, lines: [], depth: 0, source: 'rules' }
+        : await engineForPractice().evaluate(fen, { depth: Math.max(14, settings.depth), multiPv: 1 });
+      set({ explorations: { ...get().explorations, [fen]: e } });
+    } catch (err) {
+      set({ explorations: { ...get().explorations, [fen]: { error: errorText(err) } } });
+    }
   },
 
   flip() {
@@ -652,7 +711,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   },
 
   showLine(line) {
-    set({ lineView: { line, index: Math.min(1, line.moves.length), playing: false } });
+    set({ lineView: { line, index: Math.min(1, line.moves.length), playing: false }, explore: undefined });
   },
 
   stepLine(delta) {
@@ -680,6 +739,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       retry: { moveIndex, status: 'solving', attempts: 0 },
       hintsShown: 0,
       lineView: undefined,
+      explore: undefined,
       playout: undefined,
       cursor: moveIndex,
       // Practise from the side that played the move.
@@ -721,6 +781,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     set({
       retry: undefined,
       lineView: undefined,
+      explore: undefined,
       orientation: userColor,
       playout: { priorFens, history: [best.uci], fen: best.fenAfter, userColor, sans: [best.san], status: 'thinking', maiaElo },
     });

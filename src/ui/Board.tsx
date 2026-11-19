@@ -17,11 +17,13 @@ export interface BoardProps {
   onMove?: (uci: string) => void;
   /** Show the typed-move field under the board when it accepts a move (default true). */
   moveInput?: boolean;
+  /** Hide the pieces (visualization training); moves can still be typed or played. */
+  blind?: boolean;
 }
 
 const BRUSH: Record<Arrow['brush'], string> = { best: 'green', threat: 'red', played: 'blue' };
 
-export function Board({ fen, orientation, lastMove, arrows = [], onMove, moveInput = true }: BoardProps) {
+export function Board({ fen, orientation, lastMove, arrows = [], onMove, moveInput = true, blind = false }: BoardProps) {
   const el = useRef<HTMLDivElement>(null);
   const api = useRef<Api | null>(null);
   const onMoveRef = useRef(onMove);
@@ -88,7 +90,7 @@ export function Board({ fen, orientation, lastMove, arrows = [], onMove, moveInp
 
   // The position and orientation are exposed for end-to-end tests.
   return (
-    <div className="board-wrap">
+    <div className={`board-wrap${blind ? ' is-blind' : ''}`}>
       <div className="board" ref={el} data-fen={fen} data-orientation={orientation} />
       {onMove && moveInput && <MoveInput fen={fen} onMove={onMove} />}
     </div>

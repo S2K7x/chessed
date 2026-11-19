@@ -14,6 +14,7 @@ import {
   type WoodpeckerSet,
 } from '../core/woodpecker';
 import { Board } from './Board';
+import { useBlindfold } from './Blindfold';
 
 const SIZES = [25, 50, 100];
 
@@ -214,6 +215,7 @@ function Solving({ set, item }: { set: WoodpeckerSet; item: WoodpeckerItem }) {
   }, [item.status, ex, isThreat]);
 
   const onMove = useCallback((uci: string) => void woodpeckerAttempt(uci), [woodpeckerAttempt]);
+  const blindfold = useBlindfold(item.status === 'solving' || item.status === 'judging' ? ex.id : undefined);
   const opponent = playerColor === 'white' ? game.black.name : game.white.name;
   const cycleOver = !currentCycle(set);
 
@@ -229,6 +231,7 @@ function Solving({ set, item }: { set: WoodpeckerSet; item: WoodpeckerItem }) {
           orientation={playerColor}
           {...(isThreat ? { lastMove: move.uci } : {})}
           arrows={arrows}
+          blind={blindfold.hidden && item.status === 'solving'}
           {...(item.status === 'solving' ? { onMove } : {})}
         />
       </div>
@@ -256,6 +259,7 @@ function Solving({ set, item }: { set: WoodpeckerSet; item: WoodpeckerItem }) {
               </p>
             </>
           )}
+          {item.status === 'solving' && blindfold.controls}
           <div className="coach-actions">
             {item.status === 'wrong' && (
               <button className="primary" onClick={() => void woodpeckerNext()}>

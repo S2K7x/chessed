@@ -78,6 +78,18 @@ test('Woodpecker: build a set from your positions and run a cycle', async ({ pag
   expect(total).toBeGreaterThanOrEqual(5);
   for (let i = 1; i <= total; i++) {
     await expect(page.getByText(`position ${i} of ${total}`)).toBeVisible({ timeout: 15_000 });
+    // Position 3 is answered with the pieces hidden; the option is turned off for the next ones.
+    if (i === 4) await page.getByLabel('Blindfold: hide the pieces after 5 seconds').uncheck();
+    if (i === 3) {
+      // Blindfold: the pieces disappear after five seconds; a peek shows them again.
+      await page.getByLabel('Blindfold: hide the pieces after 5 seconds').check();
+      await expect(page.locator('.board-wrap.is-blind')).toBeVisible({ timeout: 8000 });
+      await expect(page.locator('cg-board piece').first()).toBeHidden();
+      await page.getByRole('button', { name: 'Peek' }).click();
+      await expect(page.locator('.board-wrap.is-blind')).toHaveCount(0);
+      await expect(page.locator('.board-wrap.is-blind')).toBeVisible({ timeout: 4000 });
+      await page.screenshot({ path: `test-results/blindfold-${info.project.name}.png`, fullPage: true });
+    }
     if (i === 2) {
       // Pausing keeps the cycle; it resumes on the same position.
       await page.getByRole('button', { name: 'Pause' }).click();

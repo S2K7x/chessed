@@ -1837,3 +1837,51 @@ cg-board square.move-dest.hover {
     left: -16px;
   }
 }
+
+/* Exploration on the review board */
+.explore-line {
+  font-size: 15px;
+  line-height: 1.8;
+}
+.explore-line .is-current {
+  background: var(--surface-2);
+  box-shadow: inset 0 -2px 0 var(--accent);
+  border-radius: 3px;
+  padding: 0 2px;
+}
+.explore-eval {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.explore-eval strong {
+  font-size: 32px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Blindfold (visualization) training */
+.board-wrap.is-blind cg-board piece {
+  visibility: hidden;
+}
+.blindfold {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 10px;
+  font-size: 14px;
+}
+.blindfold .radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.blindfold input[type='checkbox'] {
+  width: auto;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--focus);
+}

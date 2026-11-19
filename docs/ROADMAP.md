@@ -180,3 +180,18 @@ Measured and left as is:
   drawn outside the board).
 - **Accessibility audit** extended to the training sessions (spaced review,
   Woodpecker, endgames, guess the move, openings): no serious violation.
+
+## From the late-2026 research round
+
+- **Free exploration on the review board** (Chess.com now offers variations
+  inside Game Review; Lichess' analysis board always had them): any move played
+  or typed on the review board starts a variation from that position; each
+  position is evaluated (depth ≥ 14) with its best line and an arrow; Play the
+  best move, Take back, the arrow keys and Esc work as in the game.
+- **Blindfold option** for spaced review and Woodpecker: the position shows for
+  five seconds, then the pieces are hidden; the answer is typed or played from
+  memory, with a two-second peek. Evidence is thin but positive: a pilot study
+  found measurable gains from solving tactics blindfolded, larger below 1900.
+- Not done yet: asking for your own assessment of the critical moments before
+  showing the engine's (Chessalyz does this; coaches recommend analysing your
+  game yourself first).
