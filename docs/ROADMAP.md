@@ -204,3 +204,28 @@ preparation (their lines, scores, best and weakest lines, and opening
 training against their moves) and named mate patterns (smothered, Arabian).
 Next: Stockfish WDL measured against the current curve, more tactical themes,
 and exercises chosen from the profile.
+
+## Improvement cycle (general, November 2026)
+
+Audit: no known vulnerability (`npm audit`), every training mode covered end
+to end; problems found and fixed:
+
+- **PGN import.** Games written without a blank line between them made the
+  whole file fail; a game that could not be read inside a multi-game file was
+  skipped silently; and a pasted PGN with several games imported only the
+  first. Games are now separated before parsing, every game of a pasted PGN is
+  kept, and the import says which games could not be read and why ("2 games
+  imported; 1 could not be read (game 2 (C – D): Illegal or unreadable move
+  2. Ke3.)").
+- **Library beyond 200 games.** Only the 200 most recent games were loaded:
+  older games could not be opened, deleted or found. The list now pages
+  ("Show N older games") and search and filters run over every game.
+- **Board rebuilt on every appearance.** The resize observer redrew the board
+  (a full DOM rebuild in chessground) on its first notice, right after the
+  board was created; under load the rebuild came late enough to swallow a
+  click (an intermittent end-to-end failure: 2 runs in 8 under parallel load).
+  The board now redraws only when its size really changes: 12 runs in 12.
+- **Maintainability.** `store.ts` went from 1,545 to 1,004 lines: the training
+  modes (Woodpecker, endgames, openings and opponent, guess the move) are
+  Zustand slices in `src/app/slices/`, with shared helpers in
+  `src/app/shared.ts`.

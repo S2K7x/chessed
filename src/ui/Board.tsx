@@ -41,8 +41,17 @@ export function Board({ fen, orientation, lastMove, arrows = [], onMove, moveInp
       highlight: { lastMove: true, check: true },
     });
     // Pieces are positioned from the board's size: redraw when it changes
-    // (layout settling, window resize, mobile rotation).
-    const observer = new ResizeObserver(() => api.current?.redrawAll());
+    // (layout settling, window resize, mobile rotation). A redraw rebuilds the
+    // board's DOM, so skip the observer's first notice and any notice without a
+    // real change of size (a click landing during a rebuild would be lost).
+    let size = `${el.current.clientWidth}x${el.current.clientHeight}`;
+    const observer = new ResizeObserver(([entry]) => {
+      const box = entry?.contentRect;
+      const next = box ? `${Math.round(box.width)}x${Math.round(box.height)}` : '';
+      if (!box || next === size) return;
+      size = next;
+      api.current?.redrawAll();
+    });
     observer.observe(el.current);
     return () => {
       observer.disconnect();

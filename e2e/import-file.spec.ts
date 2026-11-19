@@ -32,3 +32,31 @@ test('a PGN file with several games: the others can be analysed in one go', asyn
   await expect(page.getByText(/games? (are|is) not analysed yet/)).toHaveCount(0);
   expect(pageErrors).toEqual([]);
 });
+
+test('a file with a broken game and games not separated by blank lines', async ({ page }, info) => {
+  test.skip(info.project.name === 'mobile', 'covered on desktop');
+  const dir = mkdtempSync(join(tmpdir(), 'chess-coach-file-'));
+  // No blank line between games, and the second game has an illegal move.
+  writeFileSync(
+    join(dir, 'mixed.pgn'),
+    '[White "A"]\n[Black "B"]\n[Result "1-0"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0\n' +
+      '[White "C"]\n[Black "D"]\n[Result "*"]\n\n1. e4 e5 2. Ke3 Ke6 3. Kxe5 *\n' +
+      '[White "E"]\n[Black "F"]\n[Result "*"]\n\n1. d4 d5 *\n',
+  );
+  await page.goto('/');
+  await page.locator('input[type=file][accept*="pgn"]').setInputFiles(join(dir, 'mixed.pgn'));
+  await expect(page.getByRole('alert')).toContainText('2 games imported; 1 could not be read (game 2 (C – D): Illegal or unreadable move 2. Ke3.)');
+  await expect(page.getByText('Game summary')).toBeVisible({ timeout: 90_000 });
+  await page.locator('.nav').getByRole('button', { name: 'Games' }).click();
+  await expect(page.locator('.library .library-item')).toHaveCount(2);
+});
+
+test('a pasted PGN with several games keeps them all', async ({ page }, info) => {
+  test.skip(info.project.name === 'mobile', 'covered on desktop');
+  await page.goto('/');
+  await page.getByLabel('Game link or PGN').fill(FILE);
+  await page.getByRole('button', { name: 'Analyse' }).click();
+  await expect(page.getByText('Game summary')).toBeVisible({ timeout: 90_000 });
+  await page.locator('.nav').getByRole('button', { name: 'Games' }).click();
+  await expect(page.locator('.library .library-item')).toHaveCount(3);
+});

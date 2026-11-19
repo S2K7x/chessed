@@ -1,18 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../app/store';
 import { db } from '../db/db';
+import type { Game } from '../core/game';
+import { isFiltering, LIBRARY_PAGE, matchesFilter, NO_FILTER, type LibraryFilter } from '../core/library';
 
 export function HomeView() {
   const { library, busy, settings, recent, batch } = useStore();
-  const { importInput, importFile, openGame, deleteGame, setView, loadRecent, analyseRecent, analyseBatch } = useStore.getState();
-  // Which games of the library have a review (refreshed with the library).
+  const { importInput, importFile, openGame, deleteGame, setView, loadRecent, analyseRecent, analyseBatch, showMoreGames, searchGames } = useStore.getState();
+  // Which games of the library have a review, and how many games there are (refreshed with the library).
   const [analysedIds, setAnalysedIds] = useState<Set<string>>();
+  const [total, setTotal] = useState(0);
   useEffect(() => {
     let live = true;
-    void db.reviews
-      .toCollection()
-      .primaryKeys()
-      .then((ids) => live && setAnalysedIds(new Set(ids as string[])));
+    void Promise.all([db.reviews.toCollection().primaryKeys(), db.games.count()]).then(([ids, n]) => {
+      if (!live) return;
+      setAnalysedIds(new Set(ids as string[]));
+      setTotal(n);
+    });
     return () => {
       live = false;
     };
@@ -21,14 +25,23 @@ export function HomeView() {
   const analysedRecent = new Set(recent?.analysed ?? []);
   const toAnalyse = recent ? recent.games.filter((g) => !analysedRecent.has(g.id)).length : 0;
   const [text, setText] = useState('');
-  const [filter, setFilter] = useState({ query: '', speed: '', result: '' });
-  const shown = library.filter((g) => {
-    const q = filter.query.trim().toLowerCase();
-    if (q && ![g.white.name, g.black.name, g.openingName ?? '', g.eco ?? ''].some((v) => v.toLowerCase().includes(q))) return false;
-    if (filter.speed && g.timeControl?.speed !== filter.speed) return false;
-    if (filter.result && g.result !== filter.result) return false;
-    return true;
-  });
+  const [filter, setFilter] = useState<LibraryFilter>(NO_FILTER);
+  // With filters, every game is searched, not only the loaded ones.
+  const filtering = isFiltering(filter);
+  const [found, setFound] = useState<Game[]>();
+  useEffect(() => {
+    if (!filtering) {
+      setFound(undefined);
+      return;
+    }
+    let live = true;
+    const t = setTimeout(() => void searchGames(filter).then((games) => live && setFound(games)), 150);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [filter, filtering, searchGames, library]);
+  const shown = filtering ? (found ?? library.filter((g) => matchesFilter(g, filter))) : library;
   const file = useRef<HTMLInputElement>(null);
 
   return (
@@ -178,6 +191,14 @@ export function HomeView() {
               </li>
             ))}
           </ul>
+        )}
+        {!filtering && total > library.length && (
+          <button className="show-more" onClick={() => void showMoreGames()}>
+            Show {Math.min(LIBRARY_PAGE, total - library.length)} older games ({total - library.length} more)
+          </button>
+        )}
+        {filtering && found && found.length >= LIBRARY_PAGE && (
+          <p className="muted small">Showing the {LIBRARY_PAGE} most recent matches: narrow the search to see others.</p>
         )}
       </section>
     </div>

@@ -55,7 +55,10 @@ mistakes. No account and no server costs.
   `facts/`, `explain/`), coach verification (`coach/`), training modes
   (`training.ts`, `woodpecker.ts`, `endgame.ts`, `guess.ts`,
   `openingTrainer.ts`), profile and activity.
-- `src/app/store.ts`: the application state and actions (Zustand).
+- `src/app/store.ts`: the application state and actions (Zustand). The
+  training modes live in slices (`src/app/slices/`: woodpecker, endgames,
+  openings and opponent, guess) composed into the store; helpers shared by the
+  store and the slices are in `src/app/shared.ts`.
 - `src/db/db.ts`: IndexedDB schema. A new table means a new Dexie version, and
   adding it to `exportAll` / `importAll` (backups).
 - `src/ui/`: React screens. Secondary screens are lazy-loaded in `App.tsx`

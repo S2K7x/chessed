@@ -63,13 +63,19 @@ test('endgame drills: an endgame you let slip, played again against Stockfish', 
   await clickSquare(page, 'd1');
   await clickSquare(page, 'd5');
   await expect(page.locator('.endgame-moves')).toContainText('1. Qd5+');
-  await expect(page.getByText('Your move.')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('.endgame-moves')).toContainText('1. Qd5+ K');
-  await page.getByRole('button', { name: 'Hint' }).click();
-  await page.screenshot({ path: `test-results/endgame-playing-${info.project.name}.png`, fullPage: true });
-  await page.getByRole('button', { name: 'Stop' }).click();
-
-  // Back on the list: one failed try recorded (stopped attempts do not count).
-  await expect(page.locator('.drill').first()).toContainText('1 try');
+  // Queen against rook is won: the engine either answers, or already announces a
+  // forced mate (multi-threaded search varies), which converts the drill.
+  await expect(page.getByText(/^Your move\.|^Converted: a forced mate in \d+ is on the board\./).first()).toBeVisible({ timeout: 30_000 });
+  if (await page.getByText('Your move.').isVisible()) {
+    await expect(page.locator('.endgame-moves')).toContainText('1. Qd5+ K');
+    await page.getByRole('button', { name: 'Hint' }).click();
+    await page.screenshot({ path: `test-results/endgame-playing-${info.project.name}.png`, fullPage: true });
+    await page.getByRole('button', { name: 'Stop' }).click();
+    // Back on the list: one failed try recorded (stopped attempts do not count).
+    await expect(page.locator('.drill').first()).toContainText('1 try');
+  } else {
+    await page.getByRole('button', { name: 'Back to the list' }).click();
+    await expect(page.locator('.drill').first()).toContainText('Converted');
+  }
   expect(pageErrors).toEqual([]);
 });

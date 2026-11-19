@@ -13,22 +13,67 @@ export interface ParseOptions {
 }
 
 /** Parses every game of a PGN text. Throws `PgnError` if none is valid. */
-export function parseGames(pgn: string, opts: ParseOptions = {}): Game[] {
-  const raw = parsePgn(pgn);
+/** A game of a PGN file that could not be read. */
+export interface SkippedGame {
+  /** 1-based position in the file. */
+  index: number;
+  /** "White – Black", when the headers name them. */
+  players?: string;
+  reason: string;
+}
+
+/**
+ * Some exports put a game's headers right after the previous game's moves,
+ * without the blank line that separates games: add it, so that each game is
+ * read on its own.
+ */
+export function separateGames(pgn: string): string {
+  const lines = pgn.replace(/^\uFEFF/, '').split(/\r?\n/);
+  const out: string[] = [];
+  const isTag = (l: string) => /^\s*\[[A-Za-z0-9_]+\s+"/.test(l);
+  for (const line of lines) {
+    const prev = out[out.length - 1];
+    if (isTag(line) && prev !== undefined && prev.trim() !== '' && !isTag(prev)) out.push('');
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
+/** Every game of a PGN, and the ones that could not be read (with the reason). */
+export function parseGamesReport(pgn: string, opts: ParseOptions = {}): { games: Game[]; skipped: SkippedGame[] } {
+  const raw = parsePgn(separateGames(pgn));
   const games: Game[] = [];
-  const errors: string[] = [];
-  for (const g of raw) {
+  const skipped: SkippedGame[] = [];
+  raw.forEach((g, i) => {
+    const white = g.headers.get('White');
+    const black = g.headers.get('Black');
+    const players = white && black ? `${white} – ${black}` : undefined;
     try {
       const game = toGame(g, opts);
       if (game.moves.length > 0) games.push(game);
+      else if (raw.length > 1) skipped.push({ index: i + 1, ...(players ? { players } : {}), reason: 'No moves.' });
     } catch (err) {
-      errors.push(err instanceof Error ? err.message : String(err));
+      skipped.push({ index: i + 1, ...(players ? { players } : {}), reason: err instanceof Error ? err.message : String(err) });
     }
-  }
+  });
+  return { games, skipped };
+}
+
+export function parseGames(pgn: string, opts: ParseOptions = {}): Game[] {
+  const { games, skipped } = parseGamesReport(pgn, opts);
   if (games.length === 0) {
-    throw new PgnError(errors[0] ?? 'No game with moves was found in this PGN.');
+    throw new PgnError(skipped[0]?.reason ?? 'No game with moves was found in this PGN.');
   }
   return games;
+}
+
+/** A sentence about the games of a file that could not be read, or undefined when all were. */
+export function skippedText(skipped: readonly SkippedGame[], read: number): string | undefined {
+  if (skipped.length === 0) return undefined;
+  const first = skipped[0]!;
+  const which = `game ${first.index}${first.players ? ` (${first.players})` : ''}: ${first.reason}`;
+  const more = skipped.length > 1 ? ` and ${skipped.length - 1} more` : '';
+  return `${read} game${read === 1 ? '' : 's'} imported; ${skipped.length} could not be read (${which}${more}).`;
 }
 
 export function parseGame(pgn: string, opts: ParseOptions = {}): Game {

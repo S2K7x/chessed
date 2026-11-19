@@ -4,9 +4,9 @@ import type { UciEngine } from '../core/engine';
 import type { Color, PositionEval } from '../core/eval';
 import type { PlayableLine } from '../core/explain';
 import type { Game } from '../core/game';
-import { importGame, ImportError } from '../core/import/fetchers';
+import { importGame } from '../core/import/fetchers';
 import { loadOpeningBook, type OpeningBook } from '../core/openings';
-import { PgnError, parseGames } from '../core/pgn';
+import { PgnError, parseGamesReport, skippedText, type SkippedGame } from '../core/pgn';
 import { judgeAttempt, type AttemptVerdict } from '../core/retry';
 import {
   buildReview,
@@ -25,6 +25,7 @@ import { computeProfile, type Profile, type ProfileEntry } from '../core/profile
 import { dueExercises, exercisesFromReview, gradeAttempt, review as reviewExercise, type Exercise, type TrainingGrade } from '../core/training';
 import type { MoveReview } from '../core/review';
 import { exportAll, importAll, logActivity as logActivityDb } from '../db/db';
+import { LIBRARY_PAGE, matchesFilter, type LibraryFilter } from '../core/library';
 import { dayKey, type ActivityDay } from '../core/activity';
 import { buildRepertoire, type Repertoire } from '../core/repertoire';
 import { explore, ExplorerAuthError, ratingGroupsFor, type ExplorerResult } from '../core/explorer';
@@ -32,32 +33,20 @@ import { epdOf } from '../core/chess';
 import { finishLichessLogin, lichessLogout, startLichessLogin } from './lichessAuth';
 import { findThreat, type Threat } from '../core/threat';
 import { annotatedPgn } from '../core/annotate';
-import {
-  createWoodpeckerSet,
-  nextExerciseId,
-  recordResult,
-  startCycle,
-  withoutExercises,
-  type WoodpeckerSet,
-} from '../core/woodpecker';
-import { colorOf, opponentReport, type OpponentReport } from '../core/opponent';
-import {
-  againstOpponent,
-  buildOpeningTree,
-  expectedAt,
-  pickReply,
-  trainerCoverage,
-  TRAINER_MAX_PLY,
-  type OpeningStat,
-  type OpeningTree,
-} from '../core/openingTrainer';
-import { GUESS_POINTS, guessIndices, guessScore, guessVerdict, type GuessResult } from '../core/guess';
-import type { GuessRecord } from '../db/db';
-import { endgameDrills, playEndgameMove, startEndgame, type EndgameAttempt, type EndgameDrill, type EndgameSession } from '../core/endgame';
 import { chesscomUserGames, lichessUserGames } from '../core/import/fetchers';
 import { positionWhiteWinPercent } from '../core/eval';
 import { db, DEFAULT_APP_SETTINGS, evalCache, loadSettings, saveSettings, type Settings } from '../db/db';
 import { createBrowserEngine, ENGINE_ID } from '../engine/browserEngine';
+import { browserFetch, engineForPractice, errorText, myColorOf } from './shared';
+import { createWoodpeckerSlice, type WoodpeckerSlice } from './slices/woodpecker';
+import { createEndgamesSlice, type EndgamesSlice } from './slices/endgames';
+import { createOpeningsSlice, type OpeningsSlice } from './slices/openings';
+import { createGuessSlice, type GuessSlice } from './slices/guess';
+
+export type { WoodpeckerState, WoodpeckerItem } from './slices/woodpecker';
+export type { EndgamesState } from './slices/endgames';
+export type { OpeningsState, OpponentState, OpeningSession } from './slices/openings';
+export type { GuessState, GuessSession } from './slices/guess';
 
 export type View = 'home' | 'review' | 'progress' | 'training' | 'woodpecker' | 'endgames' | 'guess' | 'openings' | 'opponent' | 'settings';
 
@@ -103,6 +92,8 @@ interface State {
   view: View;
   settings: Settings;
   library: Game[];
+  /** Games of the list loaded so far (pages of LIBRARY_PAGE, newest first). */
+  libraryLimit: number;
   game?: Game;
   review?: GameReview;
   /** White win % per position while the analysis runs. */
@@ -142,16 +133,10 @@ interface State {
   /** "What does my opponent threaten?" shown for the current position. */
   showThreats: boolean;
   threats: Record<string, Threat | 'loading' | 'none-in-check' | { error: string }>;
-  woodpecker?: WoodpeckerState;
-  endgames?: EndgamesState;
-  guess?: GuessState;
-  openings?: OpeningsState;
   /** Today's activity, for the daily goal. */
   today?: ActivityDay;
   /** Every day with activity (loaded with the progress dashboard). */
   activity?: ActivityDay[];
-  /** Preparing for an opponent from their games. */
-  opponent?: OpponentState;
 }
 
 export interface ExploreState {
@@ -160,95 +145,6 @@ export interface ExploreState {
   moves: SanMove[];
   /** Moves of the exploration shown on the board (0 = the starting position). */
   index: number;
-}
-
-/** The opening trainer, built from the player's games. */
-export interface OpeningsState {
-  /** Games used, by the player's colour. */
-  games: Record<Color, number>;
-  coverage: Record<Color, { positions: number; known: number }>;
-  session?: OpeningSession;
-}
-
-export interface OpponentState {
-  platform: 'lichess' | 'chesscom';
-  username: string;
-  loading: boolean;
-  games: Game[];
-  report?: OpponentReport;
-}
-
-export interface OpeningSession {
-  /** Training against one opponent's moves (their username). */
-  against?: string;
-  color: Color;
-  fen: string;
-  /** Moves of both sides since the start. */
-  line: SanMove[];
-  status: 'your-move' | 'wrong' | 'end';
-  right: number;
-  wrong: number;
-  /** The last move judged: the player's move and whether it was right. */
-  last?: { san: string; right: boolean };
-  /** On a wrong move: what was expected, and the usual move when it is an error. */
-  expected?: { san: string; uci: string; usualError?: string };
-  endReason?: string;
-}
-
-/** "Guess the move" through a master game. */
-export interface GuessState {
-  /** Best results by `${sourceId}:${side}`. */
-  best: Record<string, GuessRecord>;
-  session?: GuessSession;
-}
-
-export interface GuessSession {
-  /** A bundled game's id, or `pasted:${game.id}`. */
-  sourceId: string;
-  game: Game;
-  side: Color;
-  /** Indices into `game.moves` of the moves to guess. */
-  indices: number[];
-  /** Position in `indices`. */
-  step: number;
-  status: 'guessing' | 'judging' | 'revealed' | 'finished';
-  results: GuessResult[];
-  /** The last guess, in UCI. */
-  guessUci?: string;
-}
-
-/** Endgames from the player's games to win (or hold) again, against Stockfish. */
-export interface EndgamesState {
-  drills: EndgameDrill[];
-  /** Opponent and date of each drill's game. */
-  games: Record<string, { opponent: string; date?: string }>;
-  session?: EndgameSession;
-  /** The engine is answering. */
-  thinking?: boolean;
-  hints: number;
-  /** The best move, shown after a hint. */
-  hintUci?: string;
-}
-
-/** The Woodpecker method: the same set of the player's positions, solved in faster and faster cycles. */
-export interface WoodpeckerState {
-  /** The active set (none before the first one is created). */
-  set?: WoodpeckerSet;
-  /** Training positions available to build a set from. */
-  available: number;
-  item?: WoodpeckerItem;
-}
-
-export interface WoodpeckerItem {
-  ex: Exercise;
-  game: Game;
-  move: MoveReview;
-  evalBefore: PositionEval;
-  /** When the position was shown (the answer time runs from here). */
-  shownAt: number;
-  status: 'solving' | 'judging' | 'right' | 'wrong';
-  /** The move tried, in SAN. */
-  san?: string;
 }
 
 export interface TrainingState {
@@ -294,6 +190,10 @@ interface Actions {
   requestCoach(moveIndex: number): Promise<void>;
   loadProfile(): Promise<void>;
   refreshDueCount(): Promise<void>;
+  /** Loads the next page of older games in the list. */
+  showMoreGames(): Promise<void>;
+  /** The games matching the filters, among all games (newest first, at most one page). */
+  searchGames(filter: LibraryFilter): Promise<Game[]>;
   /** Records training activity for today (and refreshes the daily goal). */
   logActivity(add: { positions?: number; games?: number }): Promise<void>;
   startTraining(theme?: string): Promise<void>;
@@ -303,37 +203,6 @@ interface Actions {
   trainingNext(): Promise<void>;
   /** Leaves the training session for the training page (answers given so far are kept). */
   endTraining(): void;
-  openWoodpecker(): Promise<void>;
-  newWoodpeckerSet(size: number): Promise<void>;
-  startWoodpeckerCycle(): Promise<void>;
-  continueWoodpecker(): Promise<void>;
-  woodpeckerAttempt(uci: string): Promise<void>;
-  woodpeckerNext(): Promise<void>;
-  pauseWoodpecker(): void;
-  openEndgames(): Promise<void>;
-  /** Opens an endgame drill of the game under review. */
-  practiseEndgame(id: string): Promise<void>;
-  startEndgameDrill(id: string): Promise<void>;
-  endgameMove(uci: string): Promise<void>;
-  endgameHint(): void;
-  /** Leaves the drill (recorded as stopped when moves were played) and returns to the list. */
-  leaveEndgame(): Promise<void>;
-  openOpenings(): Promise<void>;
-  openOpponent(): void;
-  /** Fetches an opponent's recent games and builds their report. */
-  scoutOpponent(platform: 'lichess' | 'chesscom', username: string, max: number): Promise<void>;
-  /** Opening training where the replies are the scouted opponent's moves; `color` is the player's. */
-  practiseAgainst(color: Color): Promise<void>;
-  startOpeningLine(color: Color): Promise<void>;
-  openingMove(uci: string): Promise<void>;
-  openingContinue(): void;
-  leaveOpening(): void;
-  openGuess(): Promise<void>;
-  /** Starts a bundled game (by id) or a pasted PGN. */
-  startGuess(source: { id: string } | { pgn: string }, side?: Color): Promise<void>;
-  guessMove(uci: string): Promise<void>;
-  guessNext(): Promise<void>;
-  leaveGuess(): void;
   reanalyseOutdated(): Promise<void>;
   /** Analyses, in the background, the recent games that are not analysed yet. */
   analyseRecent(): Promise<void>;
@@ -393,73 +262,24 @@ async function maiaReply(): Promise<void> {
 }
 
 let analysisEngine: UciEngine | undefined;
-let practiceEngine: UciEngine | undefined;
 let analysisToken = 0;
 
 const engineForAnalysis = () => (analysisEngine ??= createBrowserEngine());
-const engineForPractice = () => (practiceEngine ??= createBrowserEngine());
 
 export function analysisSettingsOf(s: Settings, profile: Settings['profile'] = s.profile): AnalysisSettings {
   return profile === 'deep' ? { depth: Math.max(s.depth + 6, 20), multiPv: 3 } : { depth: s.depth, multiPv: 2 };
 }
 
-const browserFetch = (url: string, init?: RequestInit) => fetch(url, init);
 
-function myColorOf(game: Game, s: Settings): Color | undefined {
-  const names = [s.lichessUsername, s.chesscomUsername].map((n) => n.trim().toLowerCase()).filter(Boolean);
-  if (names.includes(game.white.name.toLowerCase())) return 'white';
-  if (names.includes(game.black.name.toLowerCase())) return 'black';
-  return undefined;
-}
 
-const errorText = (err: unknown): string =>
-  err instanceof ImportError || err instanceof PgnError
-    ? err.message
-    : err instanceof TypeError
-      ? 'Network error: the game could not be downloaded. Check your connection, or paste the PGN.'
-      : err instanceof Error
-        ? err.message
-        : String(err);
-
-const STANDARD_START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-let openingTrees: Record<Color, OpeningTree> | undefined;
-let openingStats = new Map<string, OpeningStat>();
-
-/** Plays the opponents' replies until it is the player's turn in a known position, or the line ends. */
-function advanceOpening(s: OpeningSession): OpeningSession {
-  const tree = openingTrees![s.color];
-  let cur = s;
-  for (;;) {
-    if (cur.line.length >= TRAINER_MAX_PLY) return { ...cur, status: 'end', endReason: 'Line complete: you know it up to move 8.' };
-    const node = tree.get(epdOf(cur.fen));
-    const turn = cur.fen.split(' ')[1] === 'w' ? 'white' : 'black';
-    if (turn === cur.color) {
-      if (!expectedAt(node)) {
-        return {
-          ...cur,
-          status: 'end',
-          endReason: cur.against
-            ? `You have never had this position in your games: this is where to prepare a move against ${cur.against}.`
-            : 'End of your games in this line: you have not had this position yet.',
-        };
-      }
-      return { ...cur, status: 'your-move' };
-    }
-    const reply = node ? pickReply(tree, node, cur.color, openingStats) : undefined;
-    const [m] = reply ? replayUci(cur.fen, [reply.uci]) : [];
-    if (!m) {
-      return { ...cur, status: 'end', endReason: cur.against ? `${cur.against} never reached this position in their games.` : 'End of your games in this line.' };
-    }
-    cur = { ...cur, fen: m.fenAfter, line: [...cur.line, m] };
-  }
-}
-
-async function recordOpening(color: Color, epd: string, right: boolean): Promise<void> {
-  const id = `${color}|${epd}`;
-  const prev = openingStats.get(id) ?? { id, right: 0, wrong: 0, lastAt: 0 };
-  const next = { ...prev, right: prev.right + (right ? 1 : 0), wrong: prev.wrong + (right ? 0 : 1), lastAt: Date.now() };
-  openingStats.set(id, next);
-  await db.openingStats.put(next);
+/** Saves the games read from a PGN, opens the first, and says which ones could not be read. */
+async function importParsed(games: Game[], skipped: SkippedGame[]): Promise<void> {
+  for (const g of games) await db.games.put(g);
+  useStore.setState({ library: await refreshLibrary() });
+  const first = games[0];
+  if (first) await useStore.getState().openGame(first);
+  const note = skippedText(skipped, games.length);
+  if (note) useStore.setState({ error: note });
 }
 
 let batchAbort: AbortController | undefined;
@@ -490,13 +310,16 @@ async function analyseAndStore(
 }
 
 async function refreshLibrary(): Promise<Game[]> {
-  return db.games.orderBy('importedAt').reverse().limit(200).toArray();
+  return db.games.orderBy('importedAt').reverse().limit(useStore.getState().libraryLimit).toArray();
 }
 
-export const useStore = create<State & Actions>((set, get) => ({
+export type Store = State & Actions & WoodpeckerSlice & EndgamesSlice & OpeningsSlice & GuessSlice;
+
+export const useStore = create<Store>()((set, get, api) => ({
   view: 'home',
   settings: DEFAULT_APP_SETTINGS,
   library: [],
+  libraryLimit: LIBRARY_PAGE,
   liveWins: [],
   busy: false,
   cursor: 0,
@@ -547,6 +370,14 @@ export const useStore = create<State & Actions>((set, get) => ({
     if (!text) return;
     set({ busy: true, error: undefined });
     try {
+      // A pasted PGN with several games: keep them all, as for a file.
+      if (!/^\s*https?:\/\//.test(text)) {
+        const { games, skipped } = parseGamesReport(text);
+        if (games.length > 1 || (games.length === 1 && skipped.length > 0)) {
+          await importParsed(games, skipped);
+          return;
+        }
+      }
       const s = get().settings;
       const game = await importGame(text, {
         fetch: browserFetch,
@@ -564,11 +395,9 @@ export const useStore = create<State & Actions>((set, get) => ({
   async importFile(file) {
     set({ busy: true, error: undefined });
     try {
-      const games = parseGames(await file.text());
-      for (const g of games) await db.games.put(g);
-      set({ library: await refreshLibrary() });
-      const first = games[0];
-      if (first) await get().openGame(first);
+      const { games, skipped } = parseGamesReport(await file.text());
+      if (games.length === 0) throw new PgnError(skipped[0]?.reason ?? 'No game with moves was found in this file.');
+      await importParsed(games, skipped);
     } catch (err) {
       set({ error: errorText(err) });
     } finally {
@@ -897,6 +726,20 @@ export const useStore = create<State & Actions>((set, get) => ({
     }
   },
 
+  async showMoreGames() {
+    set({ libraryLimit: get().libraryLimit + LIBRARY_PAGE });
+    set({ library: await refreshLibrary() });
+  },
+
+  async searchGames(filter) {
+    return db.games
+      .orderBy('importedAt')
+      .reverse()
+      .filter((g) => matchesFilter(g, filter))
+      .limit(LIBRARY_PAGE)
+      .toArray();
+  },
+
   async refreshDueCount() {
     const dueCount = await db.exercises.where('due').belowOrEqual(Date.now()).count();
     set({ dueCount });
@@ -961,353 +804,6 @@ export const useStore = create<State & Actions>((set, get) => ({
     }
     set({ training: { ...t, index, status: 'loading', hints: 0, wrong: 0, startedAt: Date.now(), verdict: undefined } });
     await loadTrainingItem(index);
-  },
-
-  async openWoodpecker() {
-    const [sets, exerciseIds] = await Promise.all([db.woodpecker.toArray(), db.exercises.toCollection().primaryKeys()]);
-    const known = new Set(exerciseIds as string[]);
-    let active = sets.filter((x) => !x.archived).sort((a, b) => b.createdAt - a.createdAt)[0];
-    if (active) {
-      const pruned = withoutExercises(active, new Set(active.exerciseIds.filter((id) => !known.has(id))));
-      if (pruned !== active) await db.woodpecker.put(pruned);
-      active = pruned;
-    }
-    set({ view: 'woodpecker', woodpecker: { available: known.size, ...(active ? { set: active } : {}) } });
-  },
-
-  async newWoodpeckerSet(size) {
-    const old = get().woodpecker?.set;
-    const all = await db.exercises.toArray();
-    const fresh = createWoodpeckerSet(all, size);
-    await db.transaction('rw', db.woodpecker, async () => {
-      if (old) await db.woodpecker.put({ ...old, archived: true });
-      await db.woodpecker.put(fresh);
-    });
-    set({ woodpecker: { available: all.length, set: fresh } });
-  },
-
-  async startWoodpeckerCycle() {
-    const w = get().woodpecker;
-    if (!w?.set) return;
-    const next = startCycle(w.set);
-    await db.woodpecker.put(next);
-    set({ woodpecker: { ...w, set: next } });
-    await loadWoodpeckerItem();
-  },
-
-  async continueWoodpecker() {
-    await loadWoodpeckerItem();
-  },
-
-  async woodpeckerAttempt(uci) {
-    const w = get().woodpecker;
-    const item = w?.item;
-    if (!w?.set || !item || item.status !== 'solving') return;
-    const ms = Date.now() - item.shownAt;
-    const [played] = replayUci(item.ex.fen, [uci]);
-    if (!played) return;
-    set({ woodpecker: { ...w, item: { ...item, status: 'judging', san: played.san } } });
-    let solved = played.san === item.ex.bestSan;
-    if (!solved) {
-      // Another move can be as good: let the engine judge it.
-      try {
-        const verdict = await judgeAttempt(item.ex.fen, uci, item.evalBefore, engineForPractice(), get().settings.depth);
-        solved = verdict.result === 'solved';
-      } catch (err) {
-        set({ error: errorText(err) });
-      }
-    }
-    const cur = get().woodpecker;
-    if (!cur?.set || cur.item?.ex.id !== item.ex.id) return;
-    const next = recordResult(cur.set, { exerciseId: item.ex.id, solved, ms, at: Date.now() });
-    void get().logActivity({ positions: 1 });
-    await db.woodpecker.put(next);
-    set({ woodpecker: { ...cur, set: next, item: { ...item, status: solved ? 'right' : 'wrong', san: played.san } } });
-  },
-
-  async woodpeckerNext() {
-    await loadWoodpeckerItem();
-  },
-
-  pauseWoodpecker() {
-    const w = get().woodpecker;
-    if (w) set({ woodpecker: { set: w.set!, available: w.available } });
-  },
-
-  async openEndgames() {
-    const settings = get().settings;
-    const [games, reviews, stored] = await Promise.all([db.games.toArray(), db.reviews.toArray(), db.endgames.toArray()]);
-    const byId = new Map(games.map((g) => [g.id, g]));
-    const known = new Map(stored.map((d) => [d.id, d]));
-    const fresh: EndgameDrill[] = [];
-    const info: EndgamesState['games'] = {};
-    for (const r of reviews) {
-      const game = byId.get(r.gameId);
-      const color = game && myColorOf(game, settings);
-      if (!game || !color) continue;
-      info[game.id] = { opponent: color === 'white' ? game.black.name : game.white.name, ...(game.date ? { date: game.date } : {}) };
-      for (const d of endgameDrills(game, r.review, color)) if (!known.has(d.id)) fresh.push(d);
-    }
-    if (fresh.length) await db.endgames.bulkPut(fresh);
-    const drills = [...stored.filter((d) => byId.has(d.gameId)), ...fresh].sort(
-      (a, b) => (info[b.gameId]?.date ?? '').localeCompare(info[a.gameId]?.date ?? '') || a.id.localeCompare(b.id),
-    );
-    set({ view: 'endgames', endgames: { drills, games: info, hints: 0 } });
-  },
-
-  async practiseEndgame(id) {
-    await get().openEndgames();
-    await get().startEndgameDrill(id);
-  },
-
-  async startEndgameDrill(id) {
-    const e = get().endgames;
-    const drill = e?.drills.find((d) => d.id === id);
-    if (!e || !drill) return;
-    set({ endgames: { ...e, thinking: true, hints: 0, hintUci: undefined, session: undefined } });
-    try {
-      const session = await startEndgame(drill, engineForPractice(), endgameDepth());
-      set({ endgames: { ...get().endgames!, session, thinking: false } });
-    } catch (err) {
-      set({ error: errorText(err), endgames: { ...get().endgames!, thinking: false } });
-    }
-  },
-
-  async endgameMove(uci) {
-    const e = get().endgames;
-    if (!e?.session || e.thinking || e.session.status !== 'your-move') return;
-    // Show the move at once while the engine thinks.
-    const [shown] = replayUci(e.session.fen, [uci]);
-    if (!shown) return;
-    set({ endgames: { ...e, thinking: true, hintUci: undefined, session: { ...e.session, fen: shown.fenAfter, line: [...e.session.line, shown] } } });
-    try {
-      const next = await playEndgameMove(e.session, uci, engineForPractice(), endgameDepth());
-      const cur = get().endgames;
-      if (!cur || cur.session?.drill.id !== next.drill.id) return;
-      let drills = cur.drills;
-      if (next.status !== 'your-move') {
-        drills = await recordEndgameAttempt(drills, next.drill.id, next.status, next.playerMoves, cur.hints);
-        void get().logActivity({ positions: 1 });
-      }
-      const drill = drills.find((d) => d.id === next.drill.id) ?? next.drill;
-      set({ endgames: { ...cur, drills, thinking: false, session: { ...next, drill } } });
-    } catch (err) {
-      set({ error: errorText(err), endgames: { ...get().endgames!, thinking: false, session: e.session } });
-    }
-  },
-
-  endgameHint() {
-    const e = get().endgames;
-    const best = e?.session?.status === 'your-move' ? e.session.current?.lines[0]?.pv[0] : undefined;
-    if (e && best) set({ endgames: { ...e, hints: e.hints + 1, hintUci: best } });
-  },
-
-  async leaveEndgame() {
-    const e = get().endgames;
-    if (!e) return;
-    let drills = e.drills;
-    const s = e.session;
-    if (s && s.status === 'your-move' && s.playerMoves > 0) drills = await recordEndgameAttempt(drills, s.drill.id, 'stopped', s.playerMoves, e.hints);
-    set({ endgames: { drills, games: e.games, hints: 0 } });
-  },
-
-  async openOpenings() {
-    const settings = get().settings;
-    const [games, reviews, stats] = await Promise.all([db.games.toArray(), db.reviews.toArray(), db.openingStats.toArray()]);
-    const byId = new Map(reviews.map((r) => [r.gameId, r.review]));
-    const entries: { game: Game; review?: GameReview; color: Color }[] = [];
-    for (const game of games) {
-      const color = myColorOf(game, settings);
-      if (!color || game.startFen !== STANDARD_START) continue;
-      const review = byId.get(game.id);
-      entries.push({ game, ...(review ? { review } : {}), color });
-    }
-    openingTrees = { white: buildOpeningTree(entries, 'white'), black: buildOpeningTree(entries, 'black') };
-    openingStats = new Map(stats.map((s) => [s.id, s]));
-    set({
-      view: 'openings',
-      openings: {
-        games: { white: entries.filter((e) => e.color === 'white').length, black: entries.filter((e) => e.color === 'black').length },
-        coverage: { white: trainerCoverage(openingTrees.white, 'white', openingStats), black: trainerCoverage(openingTrees.black, 'black', openingStats) },
-      },
-    });
-  },
-
-  async startOpeningLine(color) {
-    const o = get().openings;
-    if (!o || !openingTrees) return;
-    const session = advanceOpening({ color, fen: STANDARD_START, line: [], status: 'your-move', right: 0, wrong: 0 });
-    set({ openings: { ...o, session } });
-  },
-
-  async openingMove(uci) {
-    const o = get().openings;
-    const s = o?.session;
-    if (!o || !s || s.status !== 'your-move' || !openingTrees) return;
-    const node = openingTrees[s.color].get(epdOf(s.fen));
-    const exp = expectedAt(node);
-    const [played] = replayUci(s.fen, [uci]);
-    if (!exp || !played || !node) return;
-    const right = exp.accepted.has(uci);
-    await recordOpening(s.color, node.epd, right);
-    void get().logActivity({ positions: 1 });
-    if (right) {
-      const next = advanceOpening({ ...s, fen: played.fenAfter, line: [...s.line, played], right: s.right + 1, last: { san: played.san, right: true }, expected: undefined });
-      set({ openings: { ...o, session: next } });
-    } else {
-      set({
-        openings: {
-          ...o,
-          session: { ...s, status: 'wrong', wrong: s.wrong + 1, last: { san: played.san, right: false }, expected: { ...exp.main, ...(exp.usualError ? { usualError: exp.usualError } : {}) } },
-        },
-      });
-    }
-  },
-
-  openingContinue() {
-    const o = get().openings;
-    const s = o?.session;
-    if (!o || !s || s.status !== 'wrong' || !s.expected) return;
-    const [m] = replayUci(s.fen, [s.expected.uci]);
-    if (!m) return;
-    set({ openings: { ...o, session: advanceOpening({ ...s, status: 'your-move', fen: m.fenAfter, line: [...s.line, m], expected: undefined }) } });
-  },
-
-  leaveOpening() {
-    const o = get().openings;
-    if (!o) return;
-    if (o.session?.against) {
-      // Back to the opponent's report; the trainer is rebuilt from your games next time.
-      openingTrees = undefined;
-      set({ openings: undefined, view: 'opponent' });
-      return;
-    }
-    const coverage = openingTrees
-      ? { white: trainerCoverage(openingTrees.white, 'white', openingStats), black: trainerCoverage(openingTrees.black, 'black', openingStats) }
-      : o.coverage;
-    set({ openings: { games: o.games, coverage } });
-  },
-
-  openOpponent() {
-    const s = get().settings;
-    set({
-      view: 'opponent',
-      opponent: get().opponent ?? { platform: s.lichessUsername || !s.chesscomUsername ? 'lichess' : 'chesscom', username: '', loading: false, games: [] },
-    });
-  },
-
-  async scoutOpponent(platform, username, max) {
-    const name = username.trim();
-    if (!name) return;
-    set({ opponent: { platform, username: name, loading: true, games: [] }, error: undefined });
-    try {
-      const ctx = { fetch: browserFetch };
-      const games = platform === 'lichess' ? await lichessUserGames(name, max, ctx) : await chesscomUserGames(name, max, ctx, 6);
-      const book = await loadOpeningBook();
-      set({ opponent: { platform, username: name, loading: false, games, report: opponentReport(games, name, book) } });
-    } catch (err) {
-      set({ opponent: { platform, username: name, loading: false, games: [] }, error: errorText(err) });
-    }
-  },
-
-  async practiseAgainst(color) {
-    const opp = get().opponent;
-    if (!opp?.games.length) return;
-    await get().openOpenings();
-    const theirColor: Color = color === 'white' ? 'black' : 'white';
-    const theirs = buildOpeningTree(
-      opp.games.filter((g) => colorOf(g, opp.username) === theirColor && g.startFen === STANDARD_START).map((game) => ({ game, color: theirColor })),
-      theirColor,
-    );
-    openingTrees = { ...openingTrees!, [color]: againstOpponent(openingTrees![color], theirs) };
-    const o = get().openings!;
-    const session = advanceOpening({ against: opp.username, color, fen: STANDARD_START, line: [], status: 'your-move', right: 0, wrong: 0 });
-    set({ openings: { ...o, session } });
-  },
-
-  async openGuess() {
-    const records = await db.guesses.toArray();
-    set({ view: 'guess', guess: { best: Object.fromEntries(records.map((r) => [r.id, r])) } });
-  },
-
-  async startGuess(source, side) {
-    const g = get().guess ?? { best: {} };
-    let game: Game;
-    let sourceId: string;
-    try {
-      if ('id' in source) {
-        const masterGames = (await import('../data/masterGames.json')).default;
-        const entry = masterGames.find((m) => m.id === source.id);
-        if (!entry) return;
-        game = parseGames(entry.pgn)[0]!;
-        sourceId = entry.id;
-      } else {
-        const parsed = parseGames(source.pgn)[0];
-        if (!parsed || parsed.moves.length < 10) throw new PgnError('This game is too short to guess its moves.');
-        game = parsed;
-        sourceId = `pasted:${game.id}`;
-      }
-    } catch (err) {
-      set({ error: errorText(err) });
-      return;
-    }
-    const chosen: Color = side ?? (game.result === '0-1' ? 'black' : 'white');
-    const indices = guessIndices(game, chosen);
-    set({ view: 'guess', guess: { ...g, session: { sourceId, game, side: chosen, indices, step: 0, status: 'guessing', results: [] } } });
-  },
-
-  async guessMove(uci) {
-    const g = get().guess;
-    const s = g?.session;
-    if (!g || !s || s.status !== 'guessing') return;
-    const index = s.indices[s.step]!;
-    const master = s.game.moves[index]!;
-    const [played] = replayUci(master.fenBefore, [uci]);
-    if (!played) return;
-    set({ guess: { ...g, session: { ...s, status: 'judging', guessUci: uci } } });
-    let engine: AttemptVerdict['result'] | undefined;
-    if (uci !== master.uci) {
-      try {
-        const engineRef = engineForPractice();
-        const depth = Math.max(12, get().settings.depth - 2);
-        const before = await engineRef.evaluate(master.fenBefore, { depth, multiPv: 1 });
-        engine = (await judgeAttempt(master.fenBefore, uci, before, engineRef, depth)).result;
-      } catch (err) {
-        set({ error: errorText(err) });
-      }
-    }
-    const verdict = guessVerdict(uci, master.uci, engine);
-    const result: GuessResult = { index, guessSan: played.san, masterSan: master.san, verdict, points: GUESS_POINTS[verdict] };
-    void get().logActivity({ positions: 1 });
-    const cur = get().guess;
-    if (!cur?.session || cur.session.sourceId !== s.sourceId || cur.session.step !== s.step) return;
-    set({ guess: { ...cur, session: { ...cur.session, status: 'revealed', results: [...cur.session.results, result] } } });
-  },
-
-  async guessNext() {
-    const g = get().guess;
-    const s = g?.session;
-    if (!g || !s || s.status !== 'revealed') return;
-    const step = s.step + 1;
-    if (step < s.indices.length) {
-      set({ guess: { ...g, session: { ...s, step, status: 'guessing', guessUci: undefined } } });
-      return;
-    }
-    // The end: keep the best score for this game and side.
-    const score = guessScore(s.results);
-    const id = `${s.sourceId}:${s.side}`;
-    const prev = g.best[id];
-    const record: GuessRecord =
-      prev && prev.percent >= score.percent
-        ? { ...prev, plays: prev.plays + 1 }
-        : { id, sourceId: s.sourceId, side: s.side, points: score.points, max: score.max, percent: score.percent, at: Date.now(), plays: (prev?.plays ?? 0) + 1 };
-    await db.guesses.put(record);
-    set({ guess: { best: { ...g.best, [id]: record }, session: { ...s, status: 'finished' } } });
-  },
-
-  leaveGuess() {
-    const g = get().guess;
-    if (g) set({ guess: { best: g.best } });
   },
 
   async reanalyseOutdated() {
@@ -1458,6 +954,10 @@ export const useStore = create<State & Actions>((set, get) => ({
     a.click();
     URL.revokeObjectURL(url);
   },
+  ...createWoodpeckerSlice(set, get, api),
+  ...createEndgamesSlice(set, get, api),
+  ...createOpeningsSlice(set, get, api),
+  ...createGuessSlice(set, get, api),
 }));
 
 /** The player's repertoire from every stored game where their side is known. */
@@ -1502,44 +1002,3 @@ async function loadTrainingItem(index: number): Promise<void> {
   useStore.setState({ training: { ...cur, status: 'solving', game, move, evalBefore, startedAt: Date.now() } });
 }
 
-/** Shows the next position of the Woodpecker cycle in progress (none at the end of the cycle). */
-async function loadWoodpeckerItem(): Promise<void> {
-  const w = useStore.getState().woodpecker;
-  if (!w?.set) return;
-  const id = nextExerciseId(w.set);
-  if (!id) {
-    useStore.setState({ woodpecker: { set: w.set, available: w.available } });
-    return;
-  }
-  const ex = await db.exercises.get(id);
-  const [game, stored] = ex ? await Promise.all([db.games.get(ex.gameId), db.reviews.get(ex.gameId)]) : [];
-  const move = ex ? stored?.review.moves[ex.moveIndex] : undefined;
-  const evalBefore = ex ? stored?.review.evals[ex.kind === 'threat' ? ex.moveIndex + 1 : ex.moveIndex] : undefined;
-  if (!ex || !game || !move || !evalBefore) {
-    // The position's game was deleted: take it out of the set and go on.
-    const pruned = withoutExercises(w.set, new Set([id]));
-    await db.woodpecker.put(pruned);
-    useStore.setState({ woodpecker: { set: pruned, available: w.available } });
-    await loadWoodpeckerItem();
-    return;
-  }
-  useStore.setState({ woodpecker: { set: w.set, available: w.available, item: { ex, game, move, evalBefore, shownAt: Date.now(), status: 'solving' } } });
-}
-
-/** Endgames are played a little below the review depth, so that the engine answers quickly. */
-const endgameDepth = () => Math.max(12, useStore.getState().settings.depth - 2);
-
-/** Stores the result of an endgame attempt and returns the updated drills. */
-async function recordEndgameAttempt(
-  drills: EndgameDrill[],
-  id: string,
-  result: EndgameAttempt['result'],
-  moves: number,
-  hints: number,
-): Promise<EndgameDrill[]> {
-  const drill = drills.find((d) => d.id === id);
-  if (!drill) return drills;
-  const updated = { ...drill, attempts: [...drill.attempts, { at: Date.now(), result, moves, hints }] };
-  await db.endgames.put(updated);
-  return drills.map((d) => (d.id === id ? updated : d));
-}

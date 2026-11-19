@@ -63,3 +63,27 @@ describe('typed moves', () => {
     expect(typedMove(pawn, 'bxc4')).toBe('b3c4');
   });
 });
+
+describe('multi-game PGN files', () => {
+  it('separates games written without a blank line between them', async () => {
+    const { parseGamesReport } = await import('./pgn');
+    const pgn = '[White "A"]\n[Black "B"]\n[Result "*"]\n1. e4 *\n[White "C"]\n[Black "D"]\n[Result "*"]\n1. d4 *';
+    const { games, skipped } = parseGamesReport(pgn);
+    expect(games.map((g) => `${g.white.name}-${g.black.name} ${g.moves[0]?.san}`)).toEqual(['A-B e4', 'C-D d4']);
+    expect(skipped).toEqual([]);
+  });
+
+  it('reports the games it could not read, and keeps the others', async () => {
+    const { parseGamesReport, skippedText } = await import('./pgn');
+    const pgn = [
+      '[White "A"]\n[Black "B"]\n[Result "*"]\n\n1. e4 e5 *',
+      '[White "C"]\n[Black "D"]\n[Result "*"]\n\n1. e4 e5 2. Ke3 Ke6 3. Kxe5 *',
+      '[White "E"]\n[Black "F"]\n[Result "*"]\n\n1. d4 d5 *',
+    ].join('\n\n');
+    const { games, skipped } = parseGamesReport(pgn);
+    expect(games).toHaveLength(2);
+    expect(skipped).toEqual([{ index: 2, players: 'C – D', reason: 'Illegal or unreadable move 2. Ke3.' }]);
+    expect(skippedText(skipped, games.length)).toBe('2 games imported; 1 could not be read (game 2 (C – D): Illegal or unreadable move 2. Ke3.).');
+    expect(skippedText([], 2)).toBeUndefined();
+  });
+});
