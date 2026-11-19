@@ -6,6 +6,7 @@ import { ReviewView } from './ReviewView';
 import { SettingsView } from './SettingsView';
 import { ProgressView } from './ProgressView';
 import { TrainingView } from './TrainingView';
+import { WoodpeckerView } from './WoodpeckerView';
 
 export function App() {
   const { view, error, settings, game, dueCount } = useStore();
@@ -34,7 +35,7 @@ export function App() {
             <button className={view === 'review' ? 'is-current' : ''} onClick={() => setView('review')}>Review</button>
           )}
           <button className={view === 'progress' ? 'is-current' : ''} onClick={() => setView('progress')}>Progress</button>
-          <button className={view === 'training' ? 'is-current' : ''} onClick={() => setView('training')}>
+          <button className={view === 'training' || view === 'woodpecker' ? 'is-current' : ''} onClick={() => setView('training')}>
             Training{dueCount > 0 ? <span className="count" aria-label={`${dueCount} due`}>{dueCount}</span> : null}
           </button>
           <button className={view === 'settings' ? 'is-current' : ''} onClick={() => setView('settings')}>Settings</button>
@@ -51,6 +52,7 @@ export function App() {
         {view === 'review' && <ReviewView />}
         {view === 'progress' && <ProgressView />}
         {view === 'training' && <TrainingView />}
+        {view === 'woodpecker' && <WoodpeckerView />}
         {view === 'settings' && <SettingsView />}
       </main>
     </div>

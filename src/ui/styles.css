@@ -1158,3 +1158,24 @@ cg-board {
     animation: none !important;
   }
 }
+
+/* Woodpecker */
+.woodpecker .table {
+  margin: 12px 0;
+}
+.woodpecker-footer {
+  margin-top: 20px;
+  font-size: 14px;
+}
+.woodpecker-clock {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.woodpecker-clock .clock {
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0;
+}

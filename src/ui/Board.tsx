@@ -84,5 +84,6 @@ export function Board({ fen, orientation, lastMove, arrows = [], onMove }: Board
     });
   }, [fen, orientation, lastMove, arrows, onMove]);
 
-  return <div className="board" ref={el} />;
+  // The position and orientation are exposed for end-to-end tests.
+  return <div className="board" ref={el} data-fen={fen} data-orientation={orientation} />;
 }

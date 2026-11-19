@@ -11,7 +11,7 @@ const GRADE_TEXT = { easy: 'Easy', good: 'Good', hard: 'Hard', again: 'To review
 /** Daily review of the player's own mistakes (spaced repetition). */
 export function TrainingView() {
   const { training, dueCount } = useStore();
-  const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView } = useStore.getState();
+  const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView, openWoodpecker } = useStore.getState();
   const ex = training?.queue[training.index];
   const move = training?.move;
   const isThreat = ex?.kind === 'threat';
@@ -48,6 +48,9 @@ export function TrainingView() {
         <button className="primary" onClick={() => void startTraining()} disabled={dueCount === 0}>
           {dueCount > 0 ? `Review ${Math.min(10, dueCount)} positions` : 'Nothing due today'}
         </button>
+        <h2>Woodpecker</h2>
+        <p>Solve the same set of your positions in cycles, each one faster than the last, until the patterns are automatic.</p>
+        <button onClick={() => void openWoodpecker()}>Open Woodpecker</button>
       </div>
     );
   }

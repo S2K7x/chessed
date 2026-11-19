@@ -50,6 +50,14 @@ Done:
 - **Fast errors.** Moves played much faster than your own pace in the game
   (less than half your average, and under 10 s) are marked in the move list;
   the summary and the dashboard count serious errors played fast.
+- **Woodpecker mode** (Axel Smith and Hans Tikkanen's method): a fixed set of
+  your own training positions (25, 50, 100 or all), shuffled once and then
+  solved in the same order in up to seven cycles. One try per position; a move
+  other than the expected one is accepted when the engine finds it as good. The
+  clock counts only time spent on positions, so a cycle can span several
+  sessions. The next cycle's target is half the last one's time; reported
+  schedules roughly halve each cycle (for example 14 days, then 7). Kept apart
+  from the spaced-repetition schedule: Woodpecker answers do not change it.
 - **Annotated PGN export**: classes as NAGs, the evaluation as `[%eval]`, the
   coach's summary as comments and the better line as a variation. Imports into
   Lichess studies and ChessBase.

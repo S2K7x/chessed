@@ -1,6 +1,6 @@
 import { Chess } from 'chessops/chess';
 import { makeFen, parseFen } from 'chessops/fen';
-import { makeSan } from 'chessops/san';
+import { makeSan, parseSan } from 'chessops/san';
 import { makeSquare, parseSquare, parseUci, makeUci } from 'chessops/util';
 import type { Move, NormalMove, Role, Square } from 'chessops/types';
 import type { Color, Terminal } from './eval';
@@ -128,3 +128,10 @@ export function moveNumberLabel(ply: number): string {
 }
 
 export { makeSan, makeUci, parseUci, makeSquare, parseSquare };
+
+/** The UCI of a SAN move in a position, or undefined if it is not legal there. */
+export function sanToUci(fen: string, san: string): string | undefined {
+  const pos = positionFromFen(fen);
+  const move = parseSan(pos, san);
+  return move ? makeUci(move) : undefined;
+}

@@ -31,6 +31,9 @@ mistakes, and practise the positions where you went wrong.
   blunder checks: find your opponent's best reply to your move.
 - **Spaced training.** Every mistake of yours becomes a position to solve again,
   scheduled with FSRS so it comes back when you are about to forget it.
+- **Woodpecker method.** Build a set from your training positions and solve it
+  again in cycles (up to seven), aiming at about half the time each cycle, with
+  one try per position.
 - **Time use.** Time spent on each move, and errors played much faster than
   your own pace.
 - **Annotated PGN export** for Lichess studies or ChessBase.
