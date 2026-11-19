@@ -5,6 +5,7 @@ import type { Game } from '../core/game';
 import type { EvalCache, GameReview } from '../core/review';
 import type { Level } from '../core/coach/sheet';
 import type { CoachText } from '../core/coach/verify';
+import type { Exercise } from '../core/training';
 
 export interface StoredEval {
   /** `${epd}|${engineId}|${multiPv}` */
@@ -64,6 +65,7 @@ class CoachDb extends Dexie {
   evals!: EntityTable<StoredEval, 'key'>;
   settings!: EntityTable<Settings, 'key'>;
   explanations!: EntityTable<StoredExplanation, 'key'>;
+  exercises!: EntityTable<Exercise, 'id'>;
 
   constructor() {
     super('chess-coach');
@@ -74,6 +76,7 @@ class CoachDb extends Dexie {
       settings: 'key',
     });
     this.version(2).stores({ explanations: 'key, createdAt' });
+    this.version(3).stores({ exercises: 'id, due, gameId' });
   }
 }
 
@@ -113,4 +116,36 @@ export async function requestPersistence(): Promise<void> {
   } catch {
     // Not supported: data stays best-effort.
   }
+}
+
+/** Everything the user owns, as one JSON document (the coach token is left out). */
+export async function exportAll(): Promise<string> {
+  const settings = await loadSettings();
+  const data = {
+    format: 'chess-coach-backup',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    settings: { ...settings, coachToken: '' },
+    games: await db.games.toArray(),
+    reviews: await db.reviews.toArray(),
+    exercises: await db.exercises.toArray(),
+  };
+  return JSON.stringify(data);
+}
+
+/** Merges a backup into the database. Returns the number of games imported. */
+export async function importAll(json: string): Promise<number> {
+  const data = JSON.parse(json) as {
+    format?: string;
+    games?: Game[];
+    reviews?: StoredReview[];
+    exercises?: Exercise[];
+  };
+  if (data.format !== 'chess-coach-backup') throw new Error('This file is not a Chess Coach backup.');
+  await db.transaction('rw', db.games, db.reviews, db.exercises, async () => {
+    if (data.games) await db.games.bulkPut(data.games);
+    if (data.reviews) await db.reviews.bulkPut(data.reviews);
+    if (data.exercises) await db.exercises.bulkPut(data.exercises);
+  });
+  return data.games?.length ?? 0;
 }

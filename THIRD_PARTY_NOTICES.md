@@ -13,6 +13,7 @@ Chess Coach is licensed under the GNU General Public License v3.0 or later
 | [maia3-js](https://www.npmjs.com/package/maia3-js) | MIT | Maia-3 inference in the browser |
 | [ONNX Runtime Web](https://github.com/microsoft/onnxruntime) | MIT | Runs Maia-3 (WASM backend) |
 | [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript), [Zod](https://zod.dev) | MIT | Proxy `/coach` endpoint only |
+| [ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs) | MIT | Spaced-repetition scheduling of training positions |
 | [React](https://react.dev) | MIT | UI |
 | [Zustand](https://github.com/pmndrs/zustand) | MIT | State |
 | [Dexie](https://dexie.org) | Apache-2.0 | IndexedDB storage |

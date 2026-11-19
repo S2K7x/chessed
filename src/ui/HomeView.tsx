@@ -5,6 +5,14 @@ export function HomeView() {
   const { library, busy, settings, recent } = useStore();
   const { importInput, importFile, openGame, deleteGame, setView, loadRecent } = useStore.getState();
   const [text, setText] = useState('');
+  const [filter, setFilter] = useState({ query: '', speed: '', result: '' });
+  const shown = library.filter((g) => {
+    const q = filter.query.trim().toLowerCase();
+    if (q && ![g.white.name, g.black.name, g.openingName ?? '', g.eco ?? ''].some((v) => v.toLowerCase().includes(q))) return false;
+    if (filter.speed && g.timeControl?.speed !== filter.speed) return false;
+    if (filter.result && g.result !== filter.result) return false;
+    return true;
+  });
   const file = useRef<HTMLInputElement>(null);
 
   return (
@@ -85,11 +93,30 @@ export function HomeView() {
 
       <section className="library">
         <h2>Analysed games</h2>
+        {library.length > 0 && (
+          <div className="filters" role="search">
+            <input aria-label="Search players or openings" placeholder="Player or opening" value={filter.query} onChange={(e) => setFilter({ ...filter, query: e.target.value })} />
+            <select aria-label="Speed" value={filter.speed} onChange={(e) => setFilter({ ...filter, speed: e.target.value })}>
+              <option value="">All speeds</option>
+              {['bullet', 'blitz', 'rapid', 'classical', 'correspondence'].map((s) => (
+                <option key={s} value={s}>{s[0]!.toUpperCase() + s.slice(1)}</option>
+              ))}
+            </select>
+            <select aria-label="Result" value={filter.result} onChange={(e) => setFilter({ ...filter, result: e.target.value })}>
+              <option value="">All results</option>
+              <option value="1-0">1-0</option>
+              <option value="0-1">0-1</option>
+              <option value="1/2-1/2">½-½</option>
+            </select>
+          </div>
+        )}
         {library.length === 0 ? (
           <p className="muted">Games you analyse are kept on this device.</p>
+        ) : shown.length === 0 ? (
+          <p className="muted">No game matches these filters.</p>
         ) : (
           <ul className="library-list">
-            {library.map((g) => (
+            {shown.map((g) => (
               <li key={g.id} className="library-item">
                 <button className="library-open" onClick={() => void openGame(g)}>
                   <span className="library-players">

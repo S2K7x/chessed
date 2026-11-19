@@ -3,7 +3,7 @@ import { engineThreads } from '../engine/browserEngine';
 
 export function SettingsView() {
   const { settings } = useStore();
-  const { updateSettings } = useStore.getState();
+  const { updateSettings, exportBackup, importBackup } = useStore.getState();
   return (
     <div className="settings card">
       <h1>Settings</h1>
@@ -74,6 +74,17 @@ export function SettingsView() {
             {t[0]!.toUpperCase() + t.slice(1)}
           </label>
         ))}
+      </fieldset>
+      <fieldset>
+        <legend>Your data</legend>
+        <p className="muted small">Games, reviews and training cards live in this browser. Keep a copy, or move them to another device.</p>
+        <div className="import-actions">
+          <button onClick={() => void exportBackup()}>Export a backup</button>
+          <label className="button-like">
+            Import a backup
+            <input type="file" accept="application/json,.json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void importBackup(f); e.target.value = ''; }} />
+          </label>
+        </div>
       </fieldset>
       <p className="muted small">
         Chess Coach is free software (GPL-3.0-or-later), powered by Stockfish 19 and Maia-3 (CSSLab, AGPL-3.0). See the <a href="https://github.com/S2K7x/chessed">source code</a>.

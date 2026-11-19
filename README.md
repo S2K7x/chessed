@@ -22,6 +22,12 @@ mistakes, and practise the positions where you went wrong.
   engine. Then play the position on against Maia, a model of human play.
 - **Human context.** Maia-3 shows what players of your rating usually play in
   the position: many errors are natural moves, worth understanding.
+- **Progress dashboard.** Accuracy game by game and by phase, your errors by
+  theme per 100 opportunities (missed tactics are counted against the positions
+  where the tactic existed), the three themes to work on first, the errors you
+  no longer make, and your openings.
+- **Spaced training.** Every mistake of yours becomes a position to solve again,
+  scheduled with FSRS so it comes back when you are about to forget it.
 - **Optional language-model coach.** Claude rewrites the verified facts for your
   level (beginner, intermediate, advanced); every answer is checked against the
   board before it is shown. See [docs/COACH.md](docs/COACH.md).
@@ -66,6 +72,12 @@ which side you played.
   [`proxy/worker.ts`](proxy/worker.ts) as a free Cloudflare Worker and build with
   `VITE_CHESSCOM_PROXY=https://<worker>.workers.dev`. Without the proxy, games
   of the Chess.com username saved in Settings still import by link.
+
+## Your data
+
+Games, reviews and training cards live in your browser (IndexedDB). Settings →
+Your data exports everything as one JSON file and imports it back, for backups
+or another device.
 
 ## Hosting
 

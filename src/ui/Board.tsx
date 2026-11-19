@@ -27,16 +27,25 @@ export function Board({ fen, orientation, lastMove, arrows = [], onMove }: Board
 
   useEffect(() => {
     if (!el.current) return;
+    // Start on the right position: no animation from the initial setup.
     api.current = Chessground(el.current, {
+      fen,
+      orientation,
       coordinates: true,
       animation: { enabled: true, duration: 180 },
       drawable: { enabled: true, visible: true },
       highlight: { lastMove: true, check: true },
     });
+    // Pieces are positioned from the board's size: redraw when it changes
+    // (layout settling, window resize, mobile rotation).
+    const observer = new ResizeObserver(() => api.current?.redrawAll());
+    observer.observe(el.current);
     return () => {
+      observer.disconnect();
       api.current?.destroy();
       api.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- later changes go through cg.set below
   }, []);
 
   useEffect(() => {

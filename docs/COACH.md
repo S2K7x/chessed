@@ -50,3 +50,18 @@ Then in the app's Settings, enable "Write explanations with Claude", enter
 `https://<your-worker>.workers.dev/coach` and the same token. The model is
 `claude-opus-5-5` by default (variable `COACH_MODEL` in `wrangler.toml` to
 change it), with low effort and the API's server-side refusal fallback.
+
+## Progress and training
+
+- **Profile** (`src/core/profile.ts`): computed from your analysed games (your
+  side is found from the usernames in Settings). Missed tactics (mates, forks,
+  skewers, discovered attacks, free material, other combinations) are rated per
+  100 positions where the engine's best move won material or mated; errors you
+  allow and positional errors are rated per 100 moves you played. Priorities
+  rank themes with at least two errors by rate × average cost. Trends compare
+  your last games (up to 20) with the same number before; a theme counts as
+  "no longer made" when its rate fell by half after at least two errors.
+- **Training** (`src/core/training.ts`): each mistake, miss or blunder of yours
+  becomes a card scheduled with FSRS (ts-fsrs). Solved at once without hints:
+  Good (Easy within 15 s); with hints or after a wrong try: Hard; answer shown or
+  two wrong tries: Again.

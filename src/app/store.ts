@@ -20,12 +20,16 @@ import { lichessRemote } from '../core/remote';
 import { positionFromFen, replayUci, terminalOf } from '../core/chess';
 import { clampMaiaElo, humanMoves, maiaMove } from '../engine/maia';
 import { coachExplanation, coachLevel, type CoachResult } from './coach';
+import { computeProfile, type Profile, type ProfileEntry } from '../core/profile';
+import { dueExercises, exercisesFromReview, gradeAttempt, review as reviewExercise, type Exercise, type TrainingGrade } from '../core/training';
+import type { MoveReview } from '../core/review';
+import { exportAll, importAll } from '../db/db';
 import { chesscomUserGames, lichessUserGames } from '../core/import/fetchers';
 import { positionWhiteWinPercent } from '../core/eval';
 import { db, DEFAULT_APP_SETTINGS, evalCache, loadSettings, saveSettings, type Settings } from '../db/db';
 import { createBrowserEngine, ENGINE_ID } from '../engine/browserEngine';
 
-export type View = 'home' | 'review' | 'settings';
+export type View = 'home' | 'review' | 'progress' | 'training' | 'settings';
 
 export interface RetryState {
   /** Index into review.moves of the mistake being retried. */
@@ -90,6 +94,26 @@ interface State {
   playout?: PlayoutState;
   /** Language-model explanations by move index. */
   coachTexts: Record<number, CoachResult | 'loading'>;
+  profile?: { data: Profile; outdated: number; withoutMe: number } | 'loading';
+  training?: TrainingState;
+  /** Background re-analysis of games reviewed by an older classifier. */
+  reanalysis?: { done: number; total: number };
+  dueCount: number;
+}
+
+export interface TrainingState {
+  queue: Exercise[];
+  index: number;
+  status: 'loading' | 'solving' | 'judging' | 'solved' | 'failed' | 'finished';
+  startedAt: number;
+  hints: number;
+  wrong: number;
+  verdict?: AttemptVerdict;
+  move?: MoveReview;
+  evalBefore?: PositionEval;
+  game?: Game;
+  /** Grades given in this session. */
+  results: TrainingGrade[];
 }
 
 interface Actions {
@@ -118,6 +142,16 @@ interface Actions {
   playoutMove(uci: string): Promise<void>;
   endPlayout(): void;
   requestCoach(moveIndex: number): Promise<void>;
+  loadProfile(): Promise<void>;
+  refreshDueCount(): Promise<void>;
+  startTraining(theme?: string): Promise<void>;
+  trainingAttempt(uci: string): Promise<void>;
+  trainingHint(): void;
+  trainingGiveUp(): Promise<void>;
+  trainingNext(): Promise<void>;
+  reanalyseOutdated(): Promise<void>;
+  exportBackup(): Promise<void>;
+  importBackup(file: File): Promise<void>;
 }
 
 const LEVEL_ELO = { beginner: 1000, intermediate: 1500, advanced: 2000 } as const;
@@ -201,10 +235,12 @@ export const useStore = create<State & Actions>((set, get) => ({
   orientation: 'white',
   hintsShown: 0,
   coachTexts: {},
+  dueCount: 0,
 
   async init() {
     const settings = await loadSettings();
     set({ settings, library: await refreshLibrary().catch(() => []) });
+    void get().refreshDueCount().catch(() => undefined);
   },
 
   setView(view) {
@@ -322,6 +358,7 @@ export const useStore = create<State & Actions>((set, get) => ({
         review = buildReview(game, refined, book, analysisSettings, ENGINE_ID);
       }
       await db.reviews.put({ gameId: game.id, review });
+      await addExercises(game, review, settings);
       if (stillCurrent()) set({ review, progress: undefined });
     } catch (err) {
       if (!stillCurrent()) return;
@@ -492,4 +529,173 @@ export const useStore = create<State & Actions>((set, get) => ({
   dismissError() {
     set({ error: undefined });
   },
+  async loadProfile() {
+    set({ profile: 'loading' });
+    const settings = get().settings;
+    const games = await db.games.toArray();
+    const reviews = new Map((await db.reviews.toArray()).map((r) => [r.gameId, r.review]));
+    const entries: ProfileEntry[] = [];
+    let outdated = 0;
+    let withoutMe = 0;
+    for (const game of games) {
+      const review = reviews.get(game.id);
+      if (!review) continue;
+      const color = myColorOf(game, settings);
+      if (!color) {
+        withoutMe++;
+        continue;
+      }
+      if (review.classifierVersion !== CLASSIFIER_VERSION) outdated++;
+      entries.push({ game, review, color });
+    }
+    set({ profile: { data: computeProfile(entries), outdated, withoutMe } });
+  },
+
+  async refreshDueCount() {
+    const dueCount = await db.exercises.where('due').belowOrEqual(Date.now()).count();
+    set({ dueCount });
+  },
+
+  async startTraining(theme) {
+    const all = await db.exercises.toArray();
+    const queue = theme
+      ? all.filter((e) => e.theme === theme).sort((a, b) => a.due - b.due).slice(0, 10)
+      : dueExercises(all, Date.now(), 10);
+    set({
+      view: 'training',
+      training: { queue, index: 0, status: queue.length ? 'loading' : 'finished', startedAt: Date.now(), hints: 0, wrong: 0, results: [] },
+    });
+    if (queue.length) await loadTrainingItem(0);
+  },
+
+  async trainingAttempt(uci) {
+    const t = get().training;
+    const ex = t?.queue[t.index];
+    if (!t || !ex || t.status !== 'solving' || !t.evalBefore) return;
+    set({ training: { ...t, status: 'judging' } });
+    try {
+      const verdict = await judgeAttempt(ex.fen, uci, t.evalBefore, engineForPractice(), get().settings.depth);
+      const cur = get().training!;
+      if (verdict.result === 'solved') {
+        const grade = gradeAttempt({ solved: true, hints: cur.hints, wrong: cur.wrong, seconds: (Date.now() - cur.startedAt) / 1000 });
+        await db.exercises.put(await reviewExercise(ex, grade, cur.hints, cur.wrong));
+        set({ training: { ...cur, status: 'solved', verdict, results: [...cur.results, grade] } });
+        void get().refreshDueCount();
+      } else {
+        set({ training: { ...cur, status: 'solving', verdict, wrong: cur.wrong + 1 } });
+      }
+    } catch (err) {
+      set({ error: errorText(err), training: { ...get().training!, status: 'solving' } });
+    }
+  },
+
+  trainingHint() {
+    const t = get().training;
+    if (t && t.status === 'solving') set({ training: { ...t, hints: Math.min(3, t.hints + 1) } });
+  },
+
+  async trainingGiveUp() {
+    const t = get().training;
+    const ex = t?.queue[t.index];
+    if (!t || !ex || (t.status !== 'solving' && t.status !== 'judging')) return;
+    await db.exercises.put(await reviewExercise(ex, 'again', t.hints, t.wrong));
+    set({ training: { ...t, status: 'failed', results: [...t.results, 'again'] } });
+    void get().refreshDueCount();
+  },
+
+  async trainingNext() {
+    const t = get().training;
+    if (!t) return;
+    const index = t.index + 1;
+    if (index >= t.queue.length) {
+      set({ training: { ...t, index, status: 'finished' } });
+      return;
+    }
+    set({ training: { ...t, index, status: 'loading', hints: 0, wrong: 0, startedAt: Date.now(), verdict: undefined } });
+    await loadTrainingItem(index);
+  },
+
+  async reanalyseOutdated() {
+    if (get().reanalysis) return;
+    const settings = get().settings;
+    const games = new Map((await db.games.toArray()).map((g) => [g.id, g]));
+    const todo = (await db.reviews.toArray()).filter((r) => r.review.classifierVersion !== CLASSIFIER_VERSION && games.has(r.gameId));
+    if (todo.length === 0) return;
+    set({ reanalysis: { done: 0, total: todo.length } });
+    const book = await loadOpeningBook();
+    const cache = evalCache(ENGINE_ID);
+    // A separate engine, so that opening a game meanwhile is not blocked.
+    const engine = createBrowserEngine();
+    try {
+      for (const [i, stored] of todo.entries()) {
+        const game = games.get(stored.gameId)!;
+        const analysisSettings = stored.review.settings;
+        const evals = await evaluatePositions(game, engine, analysisSettings, { cache });
+        const first = buildReview(game, evals, book, analysisSettings, ENGINE_ID);
+        const refined = await refineEvaluations(evals, refineTargets(first), engine, analysisSettings, { cache });
+        const review = buildReview(game, refined, book, analysisSettings, ENGINE_ID);
+        await db.reviews.put({ gameId: game.id, review });
+        await addExercises(game, review, settings);
+        set({ reanalysis: { done: i + 1, total: todo.length } });
+      }
+    } catch (err) {
+      set({ error: `Re-analysis stopped: ${errorText(err)}` });
+    } finally {
+      engine.dispose();
+      set({ reanalysis: undefined });
+      if (get().view === 'progress') void get().loadProfile();
+    }
+  },
+
+  async exportBackup() {
+    const json = await exportAll();
+    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chess-coach-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+
+  async importBackup(file) {
+    try {
+      const n = await importAll(await file.text());
+      set({ library: await refreshLibrary(), error: undefined });
+      void get().refreshDueCount();
+      window.alert(`${n} games imported.`);
+    } catch (err) {
+      set({ error: errorText(err) });
+    }
+  },
 }));
+
+/** Creates training cards for the player's mistakes in a review (existing cards are kept). */
+async function addExercises(game: Game, review: GameReview, settings: Settings): Promise<void> {
+  const color = myColorOf(game, settings);
+  if (!color) return;
+  const fresh = await exercisesFromReview(game, review, color);
+  const existing = new Set((await db.exercises.where('gameId').equals(game.id).primaryKeys()) as string[]);
+  const toAdd = fresh.filter((e) => !existing.has(e.id));
+  if (toAdd.length) await db.exercises.bulkPut(toAdd);
+  void useStore.getState().refreshDueCount();
+}
+
+/** Loads the game and review behind a training exercise. */
+async function loadTrainingItem(index: number): Promise<void> {
+  const t = useStore.getState().training;
+  const ex = t?.queue[index];
+  if (!t || !ex) return;
+  const [game, stored] = await Promise.all([db.games.get(ex.gameId), db.reviews.get(ex.gameId)]);
+  const move = stored?.review.moves[ex.moveIndex];
+  const evalBefore = stored?.review.evals[ex.moveIndex];
+  const cur = useStore.getState().training;
+  if (!cur || cur.index !== index) return;
+  if (!game || !move || !evalBefore) {
+    // The game was deleted: drop the card and move on.
+    await db.exercises.delete(ex.id);
+    useStore.setState({ training: { ...cur, status: 'solving' } });
+    await useStore.getState().trainingNext();
+    return;
+  }
+  useStore.setState({ training: { ...cur, status: 'solving', game, move, evalBefore, startedAt: Date.now() } });
+}
