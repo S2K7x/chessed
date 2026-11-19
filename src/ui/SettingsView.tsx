@@ -79,6 +79,16 @@ export function SettingsView() {
           board before it is shown; if it mentions a move, square or piece that is not in the facts, the engine facts are shown instead.
         </p>
       </fieldset>
+      <label>
+        Daily goal (positions to train)
+        <select value={settings.dailyGoal} onChange={(e) => void updateSettings({ dailyGoal: Number(e.target.value) })}>
+          {[5, 10, 20, 30, 50].map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </label>
       <fieldset>
         <legend>Theme</legend>
         {(['system', 'light', 'dark'] as const).map((t) => (

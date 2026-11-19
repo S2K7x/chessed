@@ -8,6 +8,8 @@ import type { CoachText } from '../core/coach/verify';
 import type { Exercise } from '../core/training';
 import type { WoodpeckerSet } from '../core/woodpecker';
 import type { EndgameDrill } from '../core/endgame';
+import type { OpeningStat } from '../core/openingTrainer';
+import type { ActivityDay } from '../core/activity';
 
 /** Best "Guess the move" result for a game and side. */
 export interface GuessRecord {
@@ -60,6 +62,8 @@ export interface Settings {
   coachToken: string;
   /** Lichess OAuth token (opening explorer). */
   lichessToken: string;
+  /** Positions to train each day. */
+  dailyGoal: number;
 }
 
 export const DEFAULT_APP_SETTINGS: Settings = {
@@ -75,6 +79,7 @@ export const DEFAULT_APP_SETTINGS: Settings = {
   coachUrl: import.meta.env.VITE_COACH_URL ?? '',
   coachToken: '',
   lichessToken: '',
+  dailyGoal: 10,
 };
 
 class CoachDb extends Dexie {
@@ -87,6 +92,8 @@ class CoachDb extends Dexie {
   woodpecker!: EntityTable<WoodpeckerSet, 'id'>;
   endgames!: EntityTable<EndgameDrill, 'id'>;
   guesses!: EntityTable<GuessRecord, 'id'>;
+  openingStats!: EntityTable<OpeningStat, 'id'>;
+  activity!: EntityTable<ActivityDay, 'day'>;
 
   constructor() {
     super('chess-coach');
@@ -101,6 +108,8 @@ class CoachDb extends Dexie {
     this.version(4).stores({ woodpecker: 'id, createdAt' });
     this.version(5).stores({ endgames: 'id, gameId' });
     this.version(6).stores({ guesses: 'id' });
+    this.version(7).stores({ openingStats: 'id' });
+    this.version(8).stores({ activity: 'day' });
   }
 }
 
@@ -156,11 +165,23 @@ export async function exportAll(): Promise<string> {
     woodpecker: await db.woodpecker.toArray(),
     endgames: await db.endgames.toArray(),
     guesses: await db.guesses.toArray(),
+    openingStats: await db.openingStats.toArray(),
+    activity: await db.activity.toArray(),
   };
   return JSON.stringify(data);
 }
 
 /** Merges a backup into the database. Returns the number of games imported. */
+/** Adds to today's activity (positions answered, games analysed). */
+export async function logActivity(add: { positions?: number; games?: number }, day: string): Promise<ActivityDay> {
+  return db.transaction('rw', db.activity, async () => {
+    const prev = (await db.activity.get(day)) ?? { day, positions: 0, games: 0 };
+    const next = { day, positions: prev.positions + (add.positions ?? 0), games: prev.games + (add.games ?? 0) };
+    await db.activity.put(next);
+    return next;
+  });
+}
+
 export async function importAll(json: string): Promise<number> {
   const data = JSON.parse(json) as {
     format?: string;
@@ -170,15 +191,19 @@ export async function importAll(json: string): Promise<number> {
     woodpecker?: WoodpeckerSet[];
     endgames?: EndgameDrill[];
     guesses?: GuessRecord[];
+    openingStats?: OpeningStat[];
+    activity?: ActivityDay[];
   };
   if (data.format !== 'chess-coach-backup') throw new Error('This file is not a Chess Coach backup.');
-  await db.transaction('rw', [db.games, db.reviews, db.exercises, db.woodpecker, db.endgames, db.guesses], async () => {
+  await db.transaction('rw', [db.games, db.reviews, db.exercises, db.woodpecker, db.endgames, db.guesses, db.openingStats, db.activity], async () => {
     if (data.games) await db.games.bulkPut(data.games);
     if (data.reviews) await db.reviews.bulkPut(data.reviews);
     if (data.exercises) await db.exercises.bulkPut(data.exercises);
     if (data.woodpecker) await db.woodpecker.bulkPut(data.woodpecker);
     if (data.endgames) await db.endgames.bulkPut(data.endgames);
     if (data.guesses) await db.guesses.bulkPut(data.guesses);
+    if (data.openingStats) await db.openingStats.bulkPut(data.openingStats);
+    if (data.activity) await db.activity.bulkPut(data.activity);
   });
   return data.games?.length ?? 0;
 }

@@ -39,6 +39,11 @@ mistakes, and practise the positions where you went wrong.
   win or hold the draw.
 - **Guess the move.** Follow a master game from one side and guess each move;
   the master's move scores 3, an engine-approved alternative 2 or 1.
+- **Your openings.** A trainer built from your own games: the app plays the
+  replies your opponents chose, you play your repertoire move; where your usual
+  move was an error, the better move is the one to learn.
+- **Regular practice.** A daily goal, a streak and a twelve-week calendar of
+  your training.
 - **Analyse your latest games in one go.** Your last 20 Lichess or Chess.com
   games are analysed one after the other in the background while you keep
   reviewing.

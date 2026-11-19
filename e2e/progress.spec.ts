@@ -77,6 +77,15 @@ test('progress dashboard, spaced training and backup', async ({ page }, info) =>
   await expect(page.getByRole('heading', { name: 'Session done' })).toBeVisible();
   await expect(page.locator('.nav .count')).toHaveCount(0);
 
+  // Every position answered counts towards today's goal and the streak.
+  await page.getByRole('button', { name: 'See your progress' }).click();
+  await expect(page.getByRole('heading', { name: 'Regular practice' })).toBeVisible();
+  await expect(page.locator('.activity-stats strong').first()).toHaveText('1');
+  await expect(page.locator('.activity-stats p').nth(1)).toContainText(`${Math.min(total, 10)}/10`);
+  await expect(page.locator('.calendar-day.is-today')).not.toHaveClass(/level-0/);
+  await page.locator('.nav').getByRole('button', { name: 'Training' }).click();
+  await expect(page.getByLabel('Daily goal')).toContainText(`Today: ${Math.min(total, 10)} / 10 positions`);
+
   // Backup export.
   await page.locator('.nav').getByRole('button', { name: 'Settings' }).click();
   const download = page.waitForEvent('download');

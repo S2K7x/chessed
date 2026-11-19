@@ -10,8 +10,8 @@ const GRADE_TEXT = { easy: 'Easy', good: 'Good', hard: 'Hard', again: 'To review
 
 /** Daily review of the player's own mistakes (spaced repetition). */
 export function TrainingView() {
-  const { training, dueCount } = useStore();
-  const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView, openWoodpecker, openEndgames, openGuess } = useStore.getState();
+  const { training, dueCount, today, settings } = useStore();
+  const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView, openWoodpecker, openEndgames, openGuess, openOpenings } = useStore.getState();
   const ex = training?.queue[training.index];
   const move = training?.move;
   const isThreat = ex?.kind === 'threat';
@@ -45,7 +45,8 @@ export function TrainingView() {
       <div className="training-hub">
         <header className="hub-header">
           <h1>Training</h1>
-          <p className="muted">Four ways to turn your games into skill. Everything runs on your device.</p>
+          <p className="muted">Five ways to turn your games into skill. Everything runs on your device.</p>
+          <Goal done={today?.positions ?? 0} goal={settings.dailyGoal} />
         </header>
         <section className="mode-card">
           <p className="mode-kicker">Spaced review</p>
@@ -68,6 +69,12 @@ export function TrainingView() {
           <button onClick={() => void openEndgames()}>Open endgames</button>
         </section>
         <section className="mode-card">
+          <p className="mode-kicker">Repertoire</p>
+          <h2>Your openings</h2>
+          <p>Replay your openings against the replies your opponents actually chose, and learn the better move where yours was an error.</p>
+          <button onClick={() => void openOpenings()}>Train your openings</button>
+        </section>
+        <section className="mode-card">
           <p className="mode-kicker">Understanding</p>
           <h2>Guess the move</h2>
           <p>Follow a master game from one side and guess each move. A different move still scores when the engine finds it as good.</p>
@@ -88,6 +95,7 @@ export function TrainingView() {
           </p>
         )}
         {n === 0 && <p className="muted">No position is due. Review more games: each mistake of yours becomes a training position.</p>}
+        <Goal done={today?.positions ?? 0} goal={settings.dailyGoal} />
         <div className="coach-actions">
           <button className="primary" onClick={() => setView('progress')}>See your progress</button>
           {dueCount > 0 && <button onClick={() => void startTraining()}>Another round</button>}
@@ -182,6 +190,21 @@ export function TrainingView() {
           </div>
         </section>
       </aside>
+    </div>
+  );
+}
+
+/** Today's progress towards the daily goal. */
+function Goal({ done, goal }: { done: number; goal: number }) {
+  return (
+    <div className="goal" aria-label="Daily goal">
+      <span>
+        Today: {Math.min(done, goal)} / {goal} positions
+        {done >= goal ? ' · goal reached' : ''}
+      </span>
+      <div className="progress">
+        <div className="progress-fill" style={{ width: `${Math.min(100, (100 * done) / goal)}%` }} />
+      </div>
     </div>
   );
 }

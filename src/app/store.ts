@@ -18,13 +18,14 @@ import {
   type GameReview,
 } from '../core/review';
 import { lichessRemote } from '../core/remote';
-import { positionFromFen, replayUci, terminalOf } from '../core/chess';
+import { positionFromFen, replayUci, terminalOf, type SanMove } from '../core/chess';
 import { clampMaiaElo, humanMoves, maiaMove } from '../engine/maia';
 import { coachExplanation, coachLevel, type CoachResult } from './coach';
 import { computeProfile, type Profile, type ProfileEntry } from '../core/profile';
 import { dueExercises, exercisesFromReview, gradeAttempt, review as reviewExercise, type Exercise, type TrainingGrade } from '../core/training';
 import type { MoveReview } from '../core/review';
-import { exportAll, importAll } from '../db/db';
+import { exportAll, importAll, logActivity as logActivityDb } from '../db/db';
+import { dayKey, type ActivityDay } from '../core/activity';
 import { buildRepertoire, type Repertoire } from '../core/repertoire';
 import { explore, ExplorerAuthError, ratingGroupsFor, type ExplorerResult } from '../core/explorer';
 import { epdOf } from '../core/chess';
@@ -39,6 +40,15 @@ import {
   withoutExercises,
   type WoodpeckerSet,
 } from '../core/woodpecker';
+import {
+  buildOpeningTree,
+  expectedAt,
+  pickReply,
+  trainerCoverage,
+  TRAINER_MAX_PLY,
+  type OpeningStat,
+  type OpeningTree,
+} from '../core/openingTrainer';
 import { GUESS_POINTS, guessIndices, guessScore, guessVerdict, type GuessResult } from '../core/guess';
 import type { GuessRecord } from '../db/db';
 import { endgameDrills, playEndgameMove, startEndgame, type EndgameAttempt, type EndgameDrill, type EndgameSession } from '../core/endgame';
@@ -47,7 +57,7 @@ import { positionWhiteWinPercent } from '../core/eval';
 import { db, DEFAULT_APP_SETTINGS, evalCache, loadSettings, saveSettings, type Settings } from '../db/db';
 import { createBrowserEngine, ENGINE_ID } from '../engine/browserEngine';
 
-export type View = 'home' | 'review' | 'progress' | 'training' | 'woodpecker' | 'endgames' | 'guess' | 'settings';
+export type View = 'home' | 'review' | 'progress' | 'training' | 'woodpecker' | 'endgames' | 'guess' | 'openings' | 'settings';
 
 export interface RetryState {
   /** Index into review.moves of the mistake being retried. */
@@ -129,6 +139,34 @@ interface State {
   woodpecker?: WoodpeckerState;
   endgames?: EndgamesState;
   guess?: GuessState;
+  openings?: OpeningsState;
+  /** Today's activity, for the daily goal. */
+  today?: ActivityDay;
+  /** Every day with activity (loaded with the progress dashboard). */
+  activity?: ActivityDay[];
+}
+
+/** The opening trainer, built from the player's games. */
+export interface OpeningsState {
+  /** Games used, by the player's colour. */
+  games: Record<Color, number>;
+  coverage: Record<Color, { positions: number; known: number }>;
+  session?: OpeningSession;
+}
+
+export interface OpeningSession {
+  color: Color;
+  fen: string;
+  /** Moves of both sides since the start. */
+  line: SanMove[];
+  status: 'your-move' | 'wrong' | 'end';
+  right: number;
+  wrong: number;
+  /** The last move judged: the player's move and whether it was right. */
+  last?: { san: string; right: boolean };
+  /** On a wrong move: what was expected, and the usual move when it is an error. */
+  expected?: { san: string; uci: string; usualError?: string };
+  endReason?: string;
 }
 
 /** "Guess the move" through a master game. */
@@ -230,6 +268,8 @@ interface Actions {
   requestCoach(moveIndex: number): Promise<void>;
   loadProfile(): Promise<void>;
   refreshDueCount(): Promise<void>;
+  /** Records training activity for today (and refreshes the daily goal). */
+  logActivity(add: { positions?: number; games?: number }): Promise<void>;
   startTraining(theme?: string): Promise<void>;
   trainingAttempt(uci: string): Promise<void>;
   trainingHint(): void;
@@ -250,6 +290,11 @@ interface Actions {
   endgameHint(): void;
   /** Leaves the drill (recorded as stopped when moves were played) and returns to the list. */
   leaveEndgame(): Promise<void>;
+  openOpenings(): Promise<void>;
+  startOpeningLine(color: Color): Promise<void>;
+  openingMove(uci: string): Promise<void>;
+  openingContinue(): void;
+  leaveOpening(): void;
   openGuess(): Promise<void>;
   /** Starts a bundled game (by id) or a pasted PGN. */
   startGuess(source: { id: string } | { pgn: string }, side?: Color): Promise<void>;
@@ -337,6 +382,37 @@ const errorText = (err: unknown): string =>
         ? err.message
         : String(err);
 
+const STANDARD_START = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+let openingTrees: Record<Color, OpeningTree> | undefined;
+let openingStats = new Map<string, OpeningStat>();
+
+/** Plays the opponents' replies until it is the player's turn in a known position, or the line ends. */
+function advanceOpening(s: OpeningSession): OpeningSession {
+  const tree = openingTrees![s.color];
+  let cur = s;
+  for (;;) {
+    if (cur.line.length >= TRAINER_MAX_PLY) return { ...cur, status: 'end', endReason: 'Line complete: you know it up to move 8.' };
+    const node = tree.get(epdOf(cur.fen));
+    const turn = cur.fen.split(' ')[1] === 'w' ? 'white' : 'black';
+    if (turn === cur.color) {
+      if (!expectedAt(node)) return { ...cur, status: 'end', endReason: 'End of your games in this line: you have not had this position yet.' };
+      return { ...cur, status: 'your-move' };
+    }
+    const reply = node ? pickReply(tree, node, cur.color, openingStats) : undefined;
+    const [m] = reply ? replayUci(cur.fen, [reply.uci]) : [];
+    if (!m) return { ...cur, status: 'end', endReason: 'End of your games in this line.' };
+    cur = { ...cur, fen: m.fenAfter, line: [...cur.line, m] };
+  }
+}
+
+async function recordOpening(color: Color, epd: string, right: boolean): Promise<void> {
+  const id = `${color}|${epd}`;
+  const prev = openingStats.get(id) ?? { id, right: 0, wrong: 0, lastAt: 0 };
+  const next = { ...prev, right: prev.right + (right ? 1 : 0), wrong: prev.wrong + (right ? 0 : 1), lastAt: Date.now() };
+  openingStats.set(id, next);
+  await db.openingStats.put(next);
+}
+
 let batchAbort: AbortController | undefined;
 let batchEngine: UciEngine | undefined;
 
@@ -360,6 +436,7 @@ async function analyseAndStore(
   const review = buildReview(game, refined, book, analysisSettings, ENGINE_ID);
   await db.reviews.put({ gameId: game.id, review });
   await addExercises(game, review, settings);
+  void useStore.getState().logActivity({ games: 1 });
   return review;
 }
 
@@ -385,6 +462,7 @@ export const useStore = create<State & Actions>((set, get) => ({
   async init() {
     let settings = await loadSettings();
     set({ settings, library: await refreshLibrary().catch(() => []) });
+    void db.activity.get(dayKey(new Date())).then((today) => today && set({ today })).catch(() => undefined);
     try {
       const login = await finishLichessLogin();
       if (login) {
@@ -515,6 +593,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       }
       await db.reviews.put({ gameId: game.id, review });
       await addExercises(game, review, settings);
+      void get().logActivity({ games: 1 });
       if (stillCurrent()) set({ review, progress: undefined });
     } catch (err) {
       if (!stillCurrent()) return;
@@ -706,7 +785,16 @@ export const useStore = create<State & Actions>((set, get) => ({
       if (review.classifierVersion !== CLASSIFIER_VERSION) outdated++;
       entries.push({ game, review, color });
     }
-    set({ profile: { data: computeProfile(entries), outdated, withoutMe }, repertoire: buildRepertoire(entries) });
+    set({ profile: { data: computeProfile(entries), outdated, withoutMe }, repertoire: buildRepertoire(entries), activity: await db.activity.toArray() });
+  },
+
+  async logActivity(add) {
+    try {
+      const today = await logActivityDb(add, dayKey(new Date()));
+      set({ today });
+    } catch {
+      // Activity is a convenience: never block training on it.
+    }
   },
 
   async refreshDueCount() {
@@ -735,6 +823,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       const verdict = await judgeAttempt(ex.fen, uci, t.evalBefore, engineForPractice(), get().settings.depth);
       const cur = get().training!;
       if (verdict.result === 'solved') {
+        void get().logActivity({ positions: 1 });
         const grade = gradeAttempt({ solved: true, hints: cur.hints, wrong: cur.wrong, seconds: (Date.now() - cur.startedAt) / 1000 });
         await db.exercises.put(await reviewExercise(ex, grade, cur.hints, cur.wrong));
         set({ training: { ...cur, status: 'solved', verdict, results: [...cur.results, grade] } });
@@ -757,6 +846,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     const ex = t?.queue[t.index];
     if (!t || !ex || (t.status !== 'solving' && t.status !== 'judging')) return;
     await db.exercises.put(await reviewExercise(ex, 'again', t.hints, t.wrong));
+    void get().logActivity({ positions: 1 });
     set({ training: { ...t, status: 'failed', results: [...t.results, 'again'] } });
     void get().refreshDueCount();
   },
@@ -830,6 +920,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     const cur = get().woodpecker;
     if (!cur?.set || cur.item?.ex.id !== item.ex.id) return;
     const next = recordResult(cur.set, { exerciseId: item.ex.id, solved, ms, at: Date.now() });
+    void get().logActivity({ positions: 1 });
     await db.woodpecker.put(next);
     set({ woodpecker: { ...cur, set: next, item: { ...item, status: solved ? 'right' : 'wrong', san: played.san } } });
   },
@@ -894,7 +985,10 @@ export const useStore = create<State & Actions>((set, get) => ({
       const cur = get().endgames;
       if (!cur || cur.session?.drill.id !== next.drill.id) return;
       let drills = cur.drills;
-      if (next.status !== 'your-move') drills = await recordEndgameAttempt(drills, next.drill.id, next.status, next.playerMoves, cur.hints);
+      if (next.status !== 'your-move') {
+        drills = await recordEndgameAttempt(drills, next.drill.id, next.status, next.playerMoves, cur.hints);
+        void get().logActivity({ positions: 1 });
+      }
       const drill = drills.find((d) => d.id === next.drill.id) ?? next.drill;
       set({ endgames: { ...cur, drills, thinking: false, session: { ...next, drill } } });
     } catch (err) {
@@ -915,6 +1009,77 @@ export const useStore = create<State & Actions>((set, get) => ({
     const s = e.session;
     if (s && s.status === 'your-move' && s.playerMoves > 0) drills = await recordEndgameAttempt(drills, s.drill.id, 'stopped', s.playerMoves, e.hints);
     set({ endgames: { drills, games: e.games, hints: 0 } });
+  },
+
+  async openOpenings() {
+    const settings = get().settings;
+    const [games, reviews, stats] = await Promise.all([db.games.toArray(), db.reviews.toArray(), db.openingStats.toArray()]);
+    const byId = new Map(reviews.map((r) => [r.gameId, r.review]));
+    const entries: { game: Game; review?: GameReview; color: Color }[] = [];
+    for (const game of games) {
+      const color = myColorOf(game, settings);
+      if (!color || game.startFen !== STANDARD_START) continue;
+      const review = byId.get(game.id);
+      entries.push({ game, ...(review ? { review } : {}), color });
+    }
+    openingTrees = { white: buildOpeningTree(entries, 'white'), black: buildOpeningTree(entries, 'black') };
+    openingStats = new Map(stats.map((s) => [s.id, s]));
+    set({
+      view: 'openings',
+      openings: {
+        games: { white: entries.filter((e) => e.color === 'white').length, black: entries.filter((e) => e.color === 'black').length },
+        coverage: { white: trainerCoverage(openingTrees.white, 'white', openingStats), black: trainerCoverage(openingTrees.black, 'black', openingStats) },
+      },
+    });
+  },
+
+  async startOpeningLine(color) {
+    const o = get().openings;
+    if (!o || !openingTrees) return;
+    const session = advanceOpening({ color, fen: STANDARD_START, line: [], status: 'your-move', right: 0, wrong: 0 });
+    set({ openings: { ...o, session } });
+  },
+
+  async openingMove(uci) {
+    const o = get().openings;
+    const s = o?.session;
+    if (!o || !s || s.status !== 'your-move' || !openingTrees) return;
+    const node = openingTrees[s.color].get(epdOf(s.fen));
+    const exp = expectedAt(node);
+    const [played] = replayUci(s.fen, [uci]);
+    if (!exp || !played || !node) return;
+    const right = exp.accepted.has(uci);
+    await recordOpening(s.color, node.epd, right);
+    void get().logActivity({ positions: 1 });
+    if (right) {
+      const next = advanceOpening({ ...s, fen: played.fenAfter, line: [...s.line, played], right: s.right + 1, last: { san: played.san, right: true }, expected: undefined });
+      set({ openings: { ...o, session: next } });
+    } else {
+      set({
+        openings: {
+          ...o,
+          session: { ...s, status: 'wrong', wrong: s.wrong + 1, last: { san: played.san, right: false }, expected: { ...exp.main, ...(exp.usualError ? { usualError: exp.usualError } : {}) } },
+        },
+      });
+    }
+  },
+
+  openingContinue() {
+    const o = get().openings;
+    const s = o?.session;
+    if (!o || !s || s.status !== 'wrong' || !s.expected) return;
+    const [m] = replayUci(s.fen, [s.expected.uci]);
+    if (!m) return;
+    set({ openings: { ...o, session: advanceOpening({ ...s, status: 'your-move', fen: m.fenAfter, line: [...s.line, m], expected: undefined }) } });
+  },
+
+  leaveOpening() {
+    const o = get().openings;
+    if (!o) return;
+    const coverage = openingTrees
+      ? { white: trainerCoverage(openingTrees.white, 'white', openingStats), black: trainerCoverage(openingTrees.black, 'black', openingStats) }
+      : o.coverage;
+    set({ openings: { games: o.games, coverage } });
   },
 
   async openGuess() {
@@ -970,6 +1135,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     }
     const verdict = guessVerdict(uci, master.uci, engine);
     const result: GuessResult = { index, guessSan: played.san, masterSan: master.san, verdict, points: GUESS_POINTS[verdict] };
+    void get().logActivity({ positions: 1 });
     const cur = get().guess;
     if (!cur?.session || cur.session.sourceId !== s.sourceId || cur.session.step !== s.step) return;
     set({ guess: { ...cur, session: { ...cur.session, status: 'revealed', results: [...cur.session.results, result] } } });

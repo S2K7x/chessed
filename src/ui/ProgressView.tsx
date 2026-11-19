@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { useStore } from '../app/store';
 import type { Profile, ThemeStat } from '../core/profile';
 import { inconsistencies } from '../core/repertoire';
+import { calendar, dayKey, streaks, type ActivityDay } from '../core/activity';
 
 const pct = (x: number | undefined, digits = 0) => (x === undefined ? '–' : x.toFixed(digits));
 
 export function ProgressView() {
-  const { profile, settings, reanalysis, dueCount, repertoire } = useStore();
+  const { profile, settings, reanalysis, dueCount, repertoire, activity, today } = useStore();
   const { loadProfile, reanalyseOutdated, startTraining, setView } = useStore.getState();
   useEffect(() => {
     void loadProfile();
@@ -64,6 +65,8 @@ export function ProgressView() {
         />
         <Tile label="Positions to review today" value={String(dueCount)} action={dueCount > 0 ? { label: 'Train now', run: () => void startTraining() } : undefined} />
       </section>
+
+      <ActivityCard days={activity ?? []} todayPositions={today?.positions ?? 0} goal={settings.dailyGoal} />
 
       <section className="card">
         <h2>Work on these first</h2>
@@ -274,5 +277,49 @@ function OpeningTable({ openings }: { openings: Profile['openings'] }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+/** Streak, today's goal and a twelve-week calendar of training. */
+function ActivityCard({ days, todayPositions, goal }: { days: ActivityDay[]; todayPositions: number; goal: number }) {
+  const today = dayKey(new Date());
+  // Today's count may be more recent than the loaded days.
+  const merged = [...days.filter((d) => d.day !== today), { day: today, positions: todayPositions, games: days.find((d) => d.day === today)?.games ?? 0 }];
+  const { current, best } = streaks(merged, today);
+  const weeks = calendar(merged, today, goal);
+  return (
+    <section className="card activity">
+      <div className="activity-head">
+        <div>
+          <h2>Regular practice</h2>
+          <p className="muted small">A little every day beats long sessions now and then.</p>
+        </div>
+        <div className="activity-stats">
+          <p>
+            <strong>{current}</strong>
+            <small>day streak · best {best}</small>
+          </p>
+          <p>
+            <strong>
+              {Math.min(todayPositions, goal)}/{goal}
+            </strong>
+            <small>positions today</small>
+          </p>
+        </div>
+      </div>
+      <div className="calendar" role="img" aria-label={`Training over the last ${weeks.length} weeks: ${merged.filter((d) => d.positions + d.games > 0).length} active days`}>
+        {weeks.map((w, i) => (
+          <div key={i} className="calendar-week">
+            {w.map((c) => (
+              <span
+                key={c.day}
+                className={`calendar-day level-${c.level}${c.future ? ' is-future' : ''}${c.day === today ? ' is-today' : ''}`}
+                title={`${c.day}: ${c.positions} position${c.positions === 1 ? '' : 's'}, ${c.games} game${c.games === 1 ? '' : 's'} analysed`}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

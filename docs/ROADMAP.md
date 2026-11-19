@@ -147,3 +147,20 @@ Measured and left as is:
   games, review, training, guess the move and progress, in both themes. It
   found and fixed: two buttons whose accessible name did not match the visible
   label (WCAG 2.5.3) and grey tags under 4.5:1 contrast in the light theme.
+
+## Repertoire and habits
+
+- **Opening trainer** (`src/core/openingTrainer.ts`): a tree of the positions of
+  your games up to move 8. On your turn, the expected move is the one you play
+  most; when that move was classified as an error in most of your games, the
+  engine's move from those reviews is expected instead (and said so). Your
+  other moves that were never errors are accepted too. On your opponents'
+  turn, the app plays one of their replies at random in proportion to how often
+  it was played, weighted towards the positions you get wrong or have not
+  trained. No engine is needed, so it runs instantly and offline. Results per
+  position are stored and shown as positions known.
+- **Daily goal, streak and calendar**: every position answered in any training
+  mode and every game analysed is counted per local day. The streak counts
+  consecutive active days up to today (or yesterday while today is still
+  open); the goal (Settings, 10 by default) is shown on the training page and
+  the dashboard.

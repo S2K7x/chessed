@@ -15,11 +15,13 @@ export interface BoardProps {
   arrows?: Arrow[];
   /** When set, the side to move can play and this receives the UCI move. */
   onMove?: (uci: string) => void;
+  /** Show the typed-move field under the board when it accepts a move (default true). */
+  moveInput?: boolean;
 }
 
 const BRUSH: Record<Arrow['brush'], string> = { best: 'green', threat: 'red', played: 'blue' };
 
-export function Board({ fen, orientation, lastMove, arrows = [], onMove }: BoardProps) {
+export function Board({ fen, orientation, lastMove, arrows = [], onMove, moveInput = true }: BoardProps) {
   const el = useRef<HTMLDivElement>(null);
   const api = useRef<Api | null>(null);
   const onMoveRef = useRef(onMove);
@@ -88,13 +90,13 @@ export function Board({ fen, orientation, lastMove, arrows = [], onMove }: Board
   return (
     <div className="board-wrap">
       <div className="board" ref={el} data-fen={fen} data-orientation={orientation} />
-      {onMove && <MoveInput fen={fen} onMove={onMove} />}
+      {onMove && moveInput && <MoveInput fen={fen} onMove={onMove} />}
     </div>
   );
 }
 
 /** Keyboard move entry, for players who prefer typing, or cannot drag pieces. */
-function MoveInput({ fen, onMove }: { fen: string; onMove: (uci: string) => void }) {
+export function MoveInput({ fen, onMove }: { fen: string; onMove: (uci: string) => void }) {
   const [text, setText] = useState('');
   const [invalid, setInvalid] = useState(false);
   const submit = (e: FormEvent) => {

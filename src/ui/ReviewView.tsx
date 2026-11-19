@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useStore } from '../app/store';
 import type { Arrow } from '../core/explain';
-import { Board } from './Board';
+import { Board, MoveInput } from './Board';
 import { CoachPanel } from './CoachPanel';
 import { EvalBar } from './EvalBar';
 import { EvalGraph } from './EvalGraph';
@@ -157,8 +157,9 @@ export function ReviewView() {
         <PlayerStrip game={game} color={topColor} cursor={cursor} accuracy={review?.accuracy[topColor]} isMe={myColor === topColor} />
         <div className="board-row">
           <EvalBar evaluation={evaluation} orientation={orientation} />
-          <Board fen={board.fen} orientation={orientation} lastMove={board.lastMove} arrows={threatArrows.length ? [...board.arrows.filter((a) => a.brush !== 'threat'), ...threatArrows] : board.arrows} onMove={'interactive' in board && board.interactive ? onMove : undefined} />
+          <Board fen={board.fen} orientation={orientation} lastMove={board.lastMove} arrows={threatArrows.length ? [...board.arrows.filter((a) => a.brush !== 'threat'), ...threatArrows] : board.arrows} onMove={'interactive' in board && board.interactive ? onMove : undefined} moveInput={false} />
         </div>
+        {'interactive' in board && board.interactive && <MoveInput fen={board.fen} onMove={onMove} />}
         <PlayerStrip game={game} color={bottomColor} cursor={cursor} accuracy={review?.accuracy[bottomColor]} isMe={myColor === bottomColor} />
         <div className="board-controls" role="toolbar" aria-label="Navigation">
           <button onClick={() => goTo(0)} aria-label="First position"><Icon name="first" /></button>
