@@ -2,7 +2,7 @@ import { parseSquare } from 'chessops/util';
 import { materialBalance, positionFromFen, replayUci, type SanMove } from '../chess';
 import { positionPovWinPercent, povScore, type Color, type EngineLine, type PositionEval } from '../eval';
 import { attackersOf, pieceAt, staticExchange, type PieceAt } from './board';
-import { isBackRankMate, isPinnedToKing, motifOf, type Motif } from './motifs';
+import { isBackRankMate, isPinnedToKing, matePattern, motifOf, type MatePattern, type Motif } from './motifs';
 import { positionalFacts, type PositionalFact } from './positional';
 
 export type { PieceAt } from './board';
@@ -15,8 +15,8 @@ export type { PieceAt } from './board';
 export type PatternKind = Motif['kind'];
 
 export type Fact =
-  | { kind: 'mate_allowed'; mateIn: number; line: SanMove[]; backRank: boolean }
-  | { kind: 'mate_missed'; mateIn: number; line: SanMove[]; backRank: boolean }
+  | { kind: 'mate_allowed'; mateIn: number; line: SanMove[]; backRank: boolean; pattern?: MatePattern }
+  | { kind: 'mate_missed'; mateIn: number; line: SanMove[]; backRank: boolean; pattern?: MatePattern }
   | {
       kind: 'material_lost';
       amount: number;
@@ -123,7 +123,8 @@ export function detectFacts(ctx: FactContext): Fact[] {
   if (punishLine && oppMate !== undefined && oppMate < 0 && !(hadOppMate !== undefined && hadOppMate < 0)) {
     const n = -oppMate;
     const line = replayUci(ctx.fenAfter, punishLine.pv, 2 * n - 1);
-    facts.push({ kind: 'mate_allowed', mateIn: n, line, backRank: isBackRankMate(line) });
+    const pattern = matePattern(line);
+    facts.push({ kind: 'mate_allowed', mateIn: n, line, backRank: isBackRankMate(line), ...(pattern ? { pattern } : {}) });
   }
 
   // Mate the mover had and no longer has.
@@ -131,7 +132,8 @@ export function detectFacts(ctx: FactContext): Fact[] {
   const stillMate = after.terminal === 'checkmate' || ((mateFor(punishLine, color) ?? 0) > 0);
   if (bestLine && ownMate !== undefined && ownMate > 0 && !playedBest && !stillMate) {
     const line = replayUci(ctx.fenBefore, bestLine.pv, 2 * ownMate - 1);
-    facts.push({ kind: 'mate_missed', mateIn: ownMate, line, backRank: isBackRankMate(line) });
+    const pattern = matePattern(line);
+    facts.push({ kind: 'mate_missed', mateIn: ownMate, line, backRank: isBackRankMate(line), ...(pattern ? { pattern } : {}) });
   }
 
   // Material the opponent wins after the move.

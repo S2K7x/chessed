@@ -16,6 +16,7 @@ const loaders = {
   endgames: () => import('./EndgamesView'),
   guess: () => import('./GuessView'),
   openings: () => import('./OpeningsView'),
+  opponent: () => import('./OpponentView'),
 };
 const SettingsView = lazy(() => loaders.settings().then((m) => ({ default: m.SettingsView })));
 const ProgressView = lazy(() => loaders.progress().then((m) => ({ default: m.ProgressView })));
@@ -24,6 +25,7 @@ const WoodpeckerView = lazy(() => loaders.woodpecker().then((m) => ({ default: m
 const EndgamesView = lazy(() => loaders.endgames().then((m) => ({ default: m.EndgamesView })));
 const GuessView = lazy(() => loaders.guess().then((m) => ({ default: m.GuessView })));
 const OpeningsView = lazy(() => loaders.openings().then((m) => ({ default: m.OpeningsView })));
+const OpponentView = lazy(() => loaders.opponent().then((m) => ({ default: m.OpponentView })));
 
 function prefetchWhenIdle() {
   const run = () => {
@@ -63,7 +65,7 @@ export function App() {
             <button className={view === 'review' ? 'is-current' : ''} onClick={() => setView('review')}>Review</button>
           )}
           <button className={view === 'progress' ? 'is-current' : ''} onClick={() => setView('progress')}>Progress</button>
-          <button className={['training', 'woodpecker', 'endgames', 'guess', 'openings'].includes(view) ? 'is-current' : ''} onClick={() => setView('training')}>
+          <button className={['training', 'woodpecker', 'endgames', 'guess', 'openings', 'opponent'].includes(view) ? 'is-current' : ''} onClick={() => setView('training')}>
             Training{dueCount > 0 ? <span className="count" aria-label={`${dueCount} due`}>{dueCount}</span> : null}
           </button>
           <button className={view === 'settings' ? 'is-current' : ''} onClick={() => setView('settings')}>Settings</button>
@@ -85,6 +87,7 @@ export function App() {
         {view === 'endgames' && <EndgamesView />}
         {view === 'guess' && <GuessView />}
         {view === 'openings' && <OpeningsView />}
+        {view === 'opponent' && <OpponentView />}
         {view === 'settings' && <SettingsView />}
         </Suspense>
       </main>

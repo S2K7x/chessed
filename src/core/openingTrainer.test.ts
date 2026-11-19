@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { epdOf } from './chess';
 import type { Classification } from './classify';
-import { buildOpeningTree, expectedAt, pickReply, seededRandom, trainerCoverage, type OpeningStat } from './openingTrainer';
+import { againstOpponent, buildOpeningTree, expectedAt, pickReply, seededRandom, trainerCoverage, type OpeningStat } from './openingTrainer';
 import { parseGame } from './pgn';
 import type { GameReview } from './review';
 import { replayUci } from './chess';
@@ -77,5 +77,34 @@ describe('opening trainer', () => {
     const cov = trainerCoverage(tree, 'white', new Map([[`white|${epdOf(START)}`, { id: '', right: 2, wrong: 0, lastAt: 0 }]]));
     expect(cov.positions).toBeGreaterThan(3);
     expect(cov.known).toBe(1);
+  });
+});
+
+describe('training against one opponent', () => {
+  it('replies with the moves the opponent played, and stops where they never went', () => {
+    // My games as Black.
+    const mine = buildOpeningTree(
+      [
+        { game: parseGame('1. e4 e5 2. Nf3 Nc6 *'), color: 'black' as const },
+        { game: parseGame('1. d4 d5 2. c4 e6 *'), color: 'black' as const },
+      ],
+      'black',
+    );
+    // The opponent, as White, always plays 1. d4 2. Bf4.
+    const theirs = buildOpeningTree(
+      [
+        { game: parseGame('1. d4 d5 2. Bf4 Nf6 *'), color: 'white' as const },
+        { game: parseGame('1. d4 d5 2. Bf4 c5 *'), color: 'white' as const },
+      ],
+      'white',
+    );
+    const tree = againstOpponent(mine, theirs);
+    const start = tree.get(epdOf(START))!;
+    expect([...start.theirs.values()].map((m) => m.san)).toEqual(['d4']);
+    // After 1. d4 d5, the reply is their 2. Bf4, a position I have never had.
+    const afterD5 = tree.get(epdOf(replayUci(START, ['d2d4', 'd7d5'])[1]!.fenAfter))!;
+    expect([...afterD5.theirs.values()].map((m) => m.san)).toEqual(['Bf4']);
+    const afterBf4 = tree.get(epdOf(replayUci(START, ['d2d4', 'd7d5', 'c1f4'])[2]!.fenAfter));
+    expect(expectedAt(afterBf4)).toBeUndefined();
   });
 });

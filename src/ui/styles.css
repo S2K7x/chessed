@@ -1885,3 +1885,74 @@ input[type='checkbox'],
 input[type='radio'] {
   accent-color: var(--focus);
 }
+
+/* Opponent preparation */
+.opponent {
+  max-width: 1000px;
+}
+.opponent-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0;
+}
+.opponent-form input {
+  flex: 1 1 200px;
+  width: auto;
+}
+.opponent-form select {
+  width: auto;
+}
+.opponent-summary {
+  font-size: 17px;
+}
+.opponent-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 28px;
+}
+.opponent-side h3 {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 16px 0 4px;
+}
+.opponent-lines {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+}
+.opponent-lines li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.opponent-line {
+  display: grid;
+  min-width: 0;
+}
+.opponent-line strong {
+  font-weight: 500;
+}
+.opponent-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.score-bar {
+  width: 60px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.score-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}

@@ -86,10 +86,20 @@ function fromArchive(g: ArchiveGame, ref: { id: string }): Game {
 }
 
 /** Months to search, newest first: the given month and the one before. */
-function monthsAround(date: Date): [number, number][] {
-  const y = date.getUTCFullYear();
-  const m = date.getUTCMonth() + 1;
-  return m === 1 ? [[y, 1], [y - 1, 12]] : [[y, m], [y, m - 1]];
+/** The current month and the ones before it, most recent first. */
+function monthsAround(date: Date, count = 2): [number, number][] {
+  const out: [number, number][] = [];
+  let y = date.getUTCFullYear();
+  let m = date.getUTCMonth() + 1;
+  for (let i = 0; i < count; i++) {
+    out.push([y, m]);
+    m -= 1;
+    if (m === 0) {
+      m = 12;
+      y -= 1;
+    }
+  }
+  return out;
 }
 
 interface CallbackGame {
@@ -159,9 +169,9 @@ const castlingFix = (uci: string): string =>
   ({ e1h1: 'e1g1', e1a1: 'e1c1', e8h8: 'e8g8', e8a8: 'e8c8' })[uci] ?? uci;
 
 /** Recent Chess.com games of a user (current and previous month), newest first. */
-export async function chesscomUserGames(username: string, max: number, ctx: ImportContext): Promise<Game[]> {
+export async function chesscomUserGames(username: string, max: number, ctx: ImportContext, months = 2): Promise<Game[]> {
   const out: Game[] = [];
-  for (const [year, month] of monthsAround(new Date())) {
+  for (const [year, month] of monthsAround(new Date(), months)) {
     const games = (await chesscomArchive(username, year, month, ctx))
       .filter((g) => (g.rules ?? 'chess') === 'chess' && g.pgn)
       .sort((a, b) => (b.end_time ?? 0) - (a.end_time ?? 0));

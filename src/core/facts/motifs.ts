@@ -1,4 +1,4 @@
-import { attacks, between, ray } from 'chessops/attacks';
+import { attacks, between, kingAttacks, knightAttacks, ray } from 'chessops/attacks';
 import type { Board } from 'chessops/board';
 import type { Square } from 'chessops/types';
 import { parseSquare } from 'chessops/util';
@@ -122,4 +122,38 @@ export function isBackRankMate(line: readonly SanMove[]): boolean {
     const p = pos.board.get(s);
     return p?.role === 'pawn' && p.color === mated;
   });
+}
+
+/** Named mate patterns recognised in a mating line (as Lichess tags its puzzles). */
+export type MatePattern = 'smothered' | 'arabian';
+
+const CORNERS = new Set([0, 7, 56, 63]);
+
+/**
+ * The pattern of the mate at the end of `line`: a smothered mate (a knight
+ * mates a king whose neighbouring squares are all taken by its own pieces) or
+ * an Arabian mate (a rook next to a cornered king, protected by a knight).
+ */
+export function matePattern(line: readonly SanMove[]): MatePattern | undefined {
+  const last = line[line.length - 1];
+  if (!last || !last.san.endsWith('#')) return undefined;
+  const pos = positionFromFen(last.fenAfter);
+  const mated = pos.turn;
+  const mating = mated === 'white' ? 'black' : 'white';
+  const king = pos.board.kingOf(mated);
+  if (king === undefined) return undefined;
+  const checkers = [...pos.ctx().checkers];
+  if (checkers.length !== 1) return undefined;
+  const checker = checkers[0]!;
+  const piece = pos.board.get(checker);
+  if (piece?.role === 'knight') {
+    const smothered = [...kingAttacks(king)].every((s) => pos.board.get(s)?.color === mated);
+    if (smothered) return 'smothered';
+  }
+  if (piece?.role === 'rook' && CORNERS.has(king)) {
+    const adjacent = Math.abs((checker & 7) - (king & 7)) + Math.abs((checker >> 3) - (king >> 3)) === 1;
+    const guarded = knightAttacks(checker).intersect(pos.board.pieces(mating, 'knight')).nonEmpty();
+    if (adjacent && guarded) return 'arabian';
+  }
+  return undefined;
 }

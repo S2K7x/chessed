@@ -4,7 +4,7 @@ Chess Coach never lets a language model analyse a position. The pipeline is:
 
 1. **Engine** (Stockfish 19): evaluations and lines for every position.
 2. **Facts** (`src/core/facts/`): deterministic detectors turn the engine's
-   lines into verifiable statements: forced mates (back rank included),
+   lines into verifiable statements: forced mates (back-rank, smothered and Arabian mates named),
    material lost or missed, forks, pins, skewers, discovered attacks, double
    checks, thrown tablebase endgames, structural damage (isolated, doubled
    or conceded passed pawns, weakened king shelter, knight on the rim, early

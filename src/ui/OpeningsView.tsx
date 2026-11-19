@@ -81,7 +81,7 @@ function Session({ state }: { state: OpeningsState }) {
       </div>
       <aside className="training-side">
         <section className="coach" aria-live="polite">
-          <p className="coach-kicker">Your openings</p>
+          <p className="coach-kicker">{s.against ? `Against ${s.against}` : 'Your openings'}</p>
           <p className="opening-line">{s.line.length ? lineText(s.line, s.color) : <span className="muted">Starting position</span>}</p>
           {s.status === 'your-move' && (
             <>

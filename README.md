@@ -42,6 +42,9 @@ mistakes, and practise the positions where you went wrong.
 - **Your openings.** A trainer built from your own games: the app plays the
   replies your opponents chose, you play your repertoire move; where your usual
   move was an error, the better move is the one to learn.
+- **Prepare for an opponent.** Their recent Lichess or Chess.com games show
+  what they play with each colour and where they score best and worst; then
+  train your openings against their actual moves.
 - **Regular practice.** A daily goal, a streak and a twelve-week calendar of
   your training.
 - **Analyse your latest games in one go.** Your last 20 Lichess or Chess.com

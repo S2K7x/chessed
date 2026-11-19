@@ -12,7 +12,7 @@ const GRADE_TEXT = { easy: 'Easy', good: 'Good', hard: 'Hard', again: 'To review
 /** Daily review of the player's own mistakes (spaced repetition). */
 export function TrainingView() {
   const { training, dueCount, today, settings } = useStore();
-  const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView, openWoodpecker, openEndgames, openGuess, openOpenings, endTraining } = useStore.getState();
+  const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView, openWoodpecker, openEndgames, openGuess, openOpenings, openOpponent, endTraining } = useStore.getState();
   const ex = training?.queue[training.index];
   const move = training?.move;
   const isThreat = ex?.kind === 'threat';
@@ -48,7 +48,7 @@ export function TrainingView() {
       <div className="training-hub">
         <header className="hub-header">
           <h1>Training</h1>
-          <p className="muted">Five ways to turn your games into skill. Everything runs on your device.</p>
+          <p className="muted">Six ways to turn your games into skill. Everything runs on your device.</p>
           <Goal done={today?.positions ?? 0} goal={settings.dailyGoal} />
         </header>
         <section className="mode-card">
@@ -76,6 +76,12 @@ export function TrainingView() {
           <h2>Your openings</h2>
           <p>Replay your openings against the replies your opponents actually chose, and learn the better move where yours was an error.</p>
           <button onClick={() => void openOpenings()}>Train your openings</button>
+        </section>
+        <section className="mode-card">
+          <p className="mode-kicker">Preparation</p>
+          <h2>Your next opponent</h2>
+          <p>See what an opponent plays with each colour and where they score best and worst, then train your openings against their moves.</p>
+          <button onClick={openOpponent}>Prepare for an opponent</button>
         </section>
         <section className="mode-card">
           <p className="mode-kicker">Understanding</p>

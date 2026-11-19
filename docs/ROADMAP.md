@@ -195,3 +195,12 @@ Measured and left as is:
 - Not done yet: asking for your own assessment of the critical moments before
   showing the engine's (Chessalyz does this; coaches recommend analysing your
   game yourself first).
+
+## Advanced features research (November 2026)
+
+See [research/2026-11-advanced-features.md](research/2026-11-advanced-features.md)
+for the ten areas studied, the decisions and the sources. Done: opponent
+preparation (their lines, scores, best and weakest lines, and opening
+training against their moves) and named mate patterns (smothered, Arabian).
+Next: Stockfish WDL measured against the current curve, more tactical themes,
+and exercises chosen from the profile.

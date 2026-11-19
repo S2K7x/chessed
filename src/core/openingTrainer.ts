@@ -121,6 +121,24 @@ export function pickReply(
   return options[options.length - 1]?.m;
 }
 
+/**
+ * Training against one opponent: the player's own tree, where the replies are
+ * the moves that opponent played (from their tree, built for their colour).
+ * Positions the opponent never reached have no reply, so lines follow only
+ * what they actually play.
+ */
+export function againstOpponent(mine: OpeningTree, theirs: OpeningTree): OpeningTree {
+  const out: OpeningTree = new Map();
+  for (const [epd, node] of mine) out.set(epd, { ...node, theirs: new Map() });
+  for (const [epd, node] of theirs) {
+    if (node.mine.size === 0) continue;
+    const target = out.get(epd) ?? { epd, fen: node.fen, mine: new Map(), theirs: new Map() };
+    target.theirs = new Map(node.mine);
+    out.set(epd, target);
+  }
+  return out;
+}
+
 /** A seeded random generator (mulberry32), for reproducible lines in tests. */
 export function seededRandom(seed: number): () => number {
   let a = seed >>> 0;

@@ -89,6 +89,7 @@ const LESSONS = {
   double_check_missed: 'Look for moves that give check with two pieces at once: the opponent can only move the king.',
   pin: 'A piece pinned to the king cannot move. Before playing, check whether any of your pieces is pinned and attacked.',
   back_rank: 'Give your king an escape square (for example by playing h3 or g3) when your back rank is weak.',
+  smothered: 'When your own pieces fill every square around your king, a single knight check can be mate: keep a flight square, and watch knight checks.',
   endgame: 'In the endgame, slow down and check every move: one tempo often decides the result.',
   combination_missed:
     'When your pieces are active, search for forcing moves (checks and captures) before quiet ones.',
@@ -215,16 +216,16 @@ export function explainMove(input: ExplainInput): Explanation {
         break;
       }
       case 'mate_allowed': {
-        summary = `This allows a forced checkmate in ${fact.mateIn}${fact.backRank ? ' on your back rank' : ''}.`;
+        summary = `This allows a forced checkmate in ${fact.mateIn}${fact.backRank ? ' on your back rank' : fact.pattern ? ` (${PATTERN_NAMES[fact.pattern]})` : ''}.`;
         if (fact.backRank) lesson = LESSONS.back_rank;
         details.push(`Your opponent forces it: ${formatLine(fact.line)}.`);
         lines.push({ label: 'The mating line', fen: input.fenAfter, moves: fact.line });
         arrows.push(...arrowOf(fact.line[0], 'threat'));
-        if (!fact.backRank) lesson = LESSONS.mate_allowed;
+        if (!fact.backRank) lesson = fact.pattern === 'smothered' ? LESSONS.smothered : LESSONS.mate_allowed;
         break;
       }
       case 'mate_missed': {
-        summary = `You had a forced checkmate in ${fact.mateIn}${fact.backRank ? ' on the back rank' : ''}.`;
+        summary = `You had a forced checkmate in ${fact.mateIn}${fact.backRank ? ' on the back rank' : fact.pattern ? ` (${PATTERN_NAMES[fact.pattern]})` : ''}.`;
         details.push(`${formatLine(fact.line)} would have ended the game.`);
         lines.push({ label: 'The missed mate', fen: input.fenBefore, moves: fact.line });
         arrows.push(...arrowOf(fact.line[0], 'best'));
@@ -382,6 +383,9 @@ function betterText(bestSan: string, facts: Fact[], a: Assessment): string {
 }
 
 /** Short definitions shown to beginners next to an explanation. */
+/** Names of the mate patterns, as written in explanations. */
+export const PATTERN_NAMES = { smothered: 'a smothered mate', arabian: 'an Arabian mate' } as const;
+
 export const GLOSSARY: Record<string, string> = {
   fork: 'Fork: one piece attacks two enemy pieces at once; only one can be saved.',
   pin: 'Pin: a piece cannot move because a more valuable piece (often the king) stands behind it.',
@@ -389,6 +393,8 @@ export const GLOSSARY: Record<string, string> = {
   'discovered attack': 'Discovered attack: moving one piece uncovers an attack by another piece behind it.',
   'double check': 'Double check: two pieces give check at once; only a king move can answer it.',
   'back rank': 'Back-rank mate: a rook or queen mates a king stuck behind its own pawns on the first or last rank.',
+  'smothered mate': 'Smothered mate: a knight mates a king whose every neighbouring square is taken by its own pieces.',
+  'Arabian mate': 'Arabian mate: a rook next to a king in the corner, protected by a knight, which also covers the escape square.',
   'passed pawn': 'Passed pawn: a pawn with no enemy pawn in front of it or on the files next to it.',
   'isolated pawn': 'Isolated pawn: a pawn with no friendly pawn on the files next to it.',
   'doubled pawns': 'Doubled pawns: two pawns of the same colour on one file.',
@@ -407,6 +413,7 @@ export function glossaryFor(facts: Fact[]): string[] {
       if (f.motif === 'double_check') terms.add('double check');
     }
     if ((f.kind === 'mate_allowed' || f.kind === 'mate_missed') && f.backRank) terms.add('back rank');
+    if ((f.kind === 'mate_allowed' || f.kind === 'mate_missed') && f.pattern) terms.add(f.pattern === 'smothered' ? 'smothered mate' : 'Arabian mate');
     if (f.kind === 'endgame_thrown') terms.add('tablebase');
     if (f.kind === 'positional') {
       if (f.theme === 'passed_pawn_allowed') terms.add('passed pawn');
