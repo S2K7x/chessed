@@ -43,6 +43,8 @@ export interface Settings {
   llmCoach: boolean;
   coachUrl: string;
   coachToken: string;
+  /** Lichess OAuth token (opening explorer). */
+  lichessToken: string;
 }
 
 export const DEFAULT_APP_SETTINGS: Settings = {
@@ -57,6 +59,7 @@ export const DEFAULT_APP_SETTINGS: Settings = {
   llmCoach: false,
   coachUrl: import.meta.env.VITE_COACH_URL ?? '',
   coachToken: '',
+  lichessToken: '',
 };
 
 class CoachDb extends Dexie {
@@ -125,7 +128,7 @@ export async function exportAll(): Promise<string> {
     format: 'chess-coach-backup',
     version: 1,
     exportedAt: new Date().toISOString(),
-    settings: { ...settings, coachToken: '' },
+    settings: { ...settings, coachToken: '', lichessToken: '' },
     games: await db.games.toArray(),
     reviews: await db.reviews.toArray(),
     exercises: await db.exercises.toArray(),

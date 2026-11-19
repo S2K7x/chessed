@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../app/store';
 import type { Profile, ThemeStat } from '../core/profile';
+import { inconsistencies } from '../core/repertoire';
 
 const pct = (x: number | undefined, digits = 0) => (x === undefined ? '–' : x.toFixed(digits));
 
 export function ProgressView() {
-  const { profile, settings, reanalysis, dueCount } = useStore();
+  const { profile, settings, reanalysis, dueCount, repertoire } = useStore();
   const { loadProfile, reanalyseOutdated, startTraining, setView } = useStore.getState();
   useEffect(() => {
     void loadProfile();
@@ -109,6 +110,26 @@ export function ProgressView() {
       <section className="card">
         <h2>Openings</h2>
         <OpeningTable openings={p.openings} />
+        {repertoire && inconsistencies(repertoire).length > 0 && (
+          <>
+            <h3 className="subhead">Choices to settle</h3>
+            <p className="muted small">Positions where you have played different moves. Pick one and learn it well.</p>
+            <ul className="settle">
+              {inconsistencies(repertoire)
+                .slice(0, 5)
+                .map((p) => (
+                  <li key={p.epd}>
+                    <span className="settle-line">{p.line || 'Start'}</span>
+                    {p.moves.map((m) => (
+                      <span key={m.san} className="settle-move">
+                        {m.san} ×{m.count} ({Math.round((100 * m.points) / m.count)}%)
+                      </span>
+                    ))}
+                  </li>
+                ))}
+            </ul>
+          </>
+        )}
       </section>
     </div>
   );

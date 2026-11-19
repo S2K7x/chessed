@@ -752,6 +752,78 @@ cg-board {
   border-radius: 4px;
 }
 
+/* Openings */
+.opening-panel {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+.opening-panel .is-played,
+.explorer tr.is-played td {
+  font-weight: 700;
+}
+.small-button {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.explorer {
+  margin-top: 8px;
+}
+.explorer caption {
+  text-align: left;
+  color: var(--muted);
+  padding-bottom: 4px;
+}
+.wdl {
+  display: flex;
+  height: 10px;
+  min-width: 120px;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+.wdl-w {
+  background: var(--graph-white);
+}
+.wdl-d {
+  background: var(--muted);
+  opacity: 0.6;
+}
+.wdl-b {
+  flex: 1;
+  background: var(--graph-black);
+}
+.lichess-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.subhead {
+  margin: 18px 0 4px;
+  font-size: 17px;
+}
+.settle {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+  display: grid;
+  gap: 6px;
+}
+.settle li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 14px;
+}
+.settle-line {
+  font-weight: 600;
+}
+.settle-move {
+  color: var(--muted);
+}
+
 /* Progress and training */
 .training {
   display: grid;

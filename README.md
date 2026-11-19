@@ -28,6 +28,11 @@ mistakes, and practise the positions where you went wrong.
   no longer make, and your openings.
 - **Spaced training.** Every mistake of yours becomes a position to solve again,
   scheduled with FSRS so it comes back when you are about to forget it.
+- **Your openings.** In the opening, see what you played in your other games
+  from the same position, and (with a Lichess login) what masters and players
+  around your rating play. The dashboard lists the choices you have not settled.
+- **Works offline.** Install it as an app; once opened, games can be reviewed
+  without a connection.
 - **Optional language-model coach.** Claude rewrites the verified facts for your
   level (beginner, intermediate, advanced); every answer is checked against the
   board before it is shown. See [docs/COACH.md](docs/COACH.md).
@@ -56,6 +61,7 @@ which side you played.
 | `npm run build` | Type-check and build the static site into `dist/` |
 | `npm test` | Unit tests and Stockfish integration tests (Vitest) |
 | `npm run e2e` | End-to-end test in Chromium (Playwright) |
+| `npm run analyse -- --lichess <user> --max 50` | Batch-analyse many games from the command line and write a backup to import (see below) |
 | `npm run openings -- <path>` | Rebuild `src/data/openings.json` from a checkout of lichess-org/chess-openings |
 
 ## Importing games
@@ -72,6 +78,23 @@ which side you played.
   [`proxy/worker.ts`](proxy/worker.ts) as a free Cloudflare Worker and build with
   `VITE_CHESSCOM_PROXY=https://<worker>.workers.dev`. Without the proxy, games
   of the Chess.com username saved in Settings still import by link.
+
+## Batch analysis from the command line
+
+Reviewing many games in the browser takes a while. The command-line tool uses
+the same analysis core and writes a backup file to import in Settings → Your
+data:
+
+```bash
+npm run analyse -- --lichess <user> --max 50 --depth 16 --out reviews.json
+```
+
+```bash
+npm run analyse -- --pgn games.pgn --me <user> --engine /usr/bin/stockfish --threads 8
+```
+
+Without `--engine` it uses the bundled Stockfish WASM; a native Stockfish
+binary is several times faster. Your mistakes become training positions.
 
 ## Your data
 

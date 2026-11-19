@@ -8,6 +8,7 @@ import { ClassBadge } from './ClassBadge';
 import { HumanMoves } from './HumanMoves';
 import { LlmCoach } from './LlmCoach';
 import { PlayoutPanel } from './PlayoutPanel';
+import { OpeningPanel } from './OpeningPanel';
 import { coachAvailable, coachLevel } from '../app/coach';
 import { hintsFor } from '../core/hints';
 import { glossaryFor } from '../core/explain';
@@ -227,6 +228,9 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
       {beginner && glossaryFor(m.facts).map((g) => (
         <p key={g} className="glossary small">{g}</p>
       ))}
+      {m.phase === 'opening' && game.moves[cursor - 1] && (
+        <OpeningPanel fen={game.moves[cursor - 1]!.fenBefore} playedUci={m.uci} isMine={!myColor || myColor === m.color} gameId={game.id} />
+      )}
       {ERROR_CLASSES.has(m.assessment.classification) && (
         <HumanMoves moveIndex={cursor - 1} playedUci={m.uci} {...(m.bestLine[0] ? { bestUci: m.bestLine[0].uci } : {})} />
       )}

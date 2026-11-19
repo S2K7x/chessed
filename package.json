@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "e2e": "playwright test --trace off",
     "proxy:deploy": "cd proxy && npx wrangler deploy",
-    "openings": "node scripts/build-openings.mjs"
+    "openings": "node scripts/build-openings.mjs",
+    "analyse": "vite build --config vite.cli.config.ts --logLevel warn && node dist-cli/analyse.mjs"
   },
   "dependencies": {
     "@lichess-org/chessground": "^10.1.1",

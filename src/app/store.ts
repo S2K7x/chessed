@@ -24,6 +24,10 @@ import { computeProfile, type Profile, type ProfileEntry } from '../core/profile
 import { dueExercises, exercisesFromReview, gradeAttempt, review as reviewExercise, type Exercise, type TrainingGrade } from '../core/training';
 import type { MoveReview } from '../core/review';
 import { exportAll, importAll } from '../db/db';
+import { buildRepertoire, type Repertoire } from '../core/repertoire';
+import { explore, ExplorerAuthError, ratingGroupsFor, type ExplorerResult } from '../core/explorer';
+import { epdOf } from '../core/chess';
+import { finishLichessLogin, lichessLogout, startLichessLogin } from './lichessAuth';
 import { chesscomUserGames, lichessUserGames } from '../core/import/fetchers';
 import { positionWhiteWinPercent } from '../core/eval';
 import { db, DEFAULT_APP_SETTINGS, evalCache, loadSettings, saveSettings, type Settings } from '../db/db';
@@ -99,6 +103,10 @@ interface State {
   /** Background re-analysis of games reviewed by an older classifier. */
   reanalysis?: { done: number; total: number };
   dueCount: number;
+  /** The player's own opening choices across their games. */
+  repertoire?: Repertoire;
+  /** Opening explorer results by `${source}|${epd}`. */
+  explorer: Record<string, ExplorerResult | 'loading' | { error: string; auth?: boolean }>;
 }
 
 export interface TrainingState {
@@ -152,6 +160,9 @@ interface Actions {
   reanalyseOutdated(): Promise<void>;
   exportBackup(): Promise<void>;
   importBackup(file: File): Promise<void>;
+  loadExplorer(fen: string, source: 'masters' | 'lichess'): Promise<void>;
+  connectLichess(): Promise<void>;
+  disconnectLichess(): Promise<void>;
 }
 
 const LEVEL_ELO = { beginner: 1000, intermediate: 1500, advanced: 2000 } as const;
@@ -236,10 +247,21 @@ export const useStore = create<State & Actions>((set, get) => ({
   hintsShown: 0,
   coachTexts: {},
   dueCount: 0,
+  explorer: {},
 
   async init() {
-    const settings = await loadSettings();
+    let settings = await loadSettings();
     set({ settings, library: await refreshLibrary().catch(() => []) });
+    try {
+      const login = await finishLichessLogin();
+      if (login) {
+        settings = { ...settings, lichessToken: login.token, lichessUsername: settings.lichessUsername || login.username || '' };
+        await saveSettings(settings);
+        set({ settings, view: 'settings' });
+      }
+    } catch (err) {
+      set({ error: errorText(err) });
+    }
     void get().refreshDueCount().catch(() => undefined);
   },
 
@@ -311,6 +333,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       library: await refreshLibrary(),
     });
 
+    void buildMyRepertoire(settings).then((repertoire) => set({ repertoire }));
     const stored = await db.reviews.get(game.id);
     const s = stored?.review.settings;
     if (
@@ -548,7 +571,7 @@ export const useStore = create<State & Actions>((set, get) => ({
       if (review.classifierVersion !== CLASSIFIER_VERSION) outdated++;
       entries.push({ game, review, color });
     }
-    set({ profile: { data: computeProfile(entries), outdated, withoutMe } });
+    set({ profile: { data: computeProfile(entries), outdated, withoutMe }, repertoire: buildRepertoire(entries) });
   },
 
   async refreshDueCount() {
@@ -667,7 +690,41 @@ export const useStore = create<State & Actions>((set, get) => ({
       set({ error: errorText(err) });
     }
   },
+  async loadExplorer(fen, source) {
+    const { settings, game, myColor, explorer } = get();
+    const key = `${source}|${epdOf(fen)}`;
+    if (explorer[key] && explorer[key] !== 'loading' && !('error' in (explorer[key] as object))) return;
+    set({ explorer: { ...explorer, [key]: 'loading' } });
+    try {
+      const elo = game && myColor ? game[myColor].elo : undefined;
+      const result = await explore(browserFetch, settings.lichessToken, source, fen, { ratings: ratingGroupsFor(elo) });
+      set({ explorer: { ...get().explorer, [key]: result } });
+    } catch (err) {
+      set({ explorer: { ...get().explorer, [key]: { error: errorText(err), auth: err instanceof ExplorerAuthError } } });
+    }
+  },
+
+  async connectLichess() {
+    await startLichessLogin();
+  },
+
+  async disconnectLichess() {
+    const token = get().settings.lichessToken;
+    if (token) await lichessLogout(token);
+    await get().updateSettings({ lichessToken: '' });
+    set({ explorer: {} });
+  },
 }));
+
+/** The player's repertoire from every stored game where their side is known. */
+async function buildMyRepertoire(settings: Settings): Promise<Repertoire> {
+  const games = await db.games.toArray();
+  const mine = games.flatMap((game) => {
+    const color = myColorOf(game, settings);
+    return color ? [{ game, color }] : [];
+  });
+  return buildRepertoire(mine);
+}
 
 /** Creates training cards for the player's mistakes in a review (existing cards are kept). */
 async function addExercises(game: Game, review: GameReview, settings: Settings): Promise<void> {

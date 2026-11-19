@@ -3,7 +3,7 @@ import { engineThreads } from '../engine/browserEngine';
 
 export function SettingsView() {
   const { settings } = useStore();
-  const { updateSettings, exportBackup, importBackup } = useStore.getState();
+  const { updateSettings, exportBackup, importBackup, connectLichess, disconnectLichess } = useStore.getState();
   return (
     <div className="settings card">
       <h1>Settings</h1>
@@ -16,6 +16,19 @@ export function SettingsView() {
         <input value={settings.chesscomUsername} onChange={(e) => void updateSettings({ chesscomUsername: e.target.value })} autoComplete="off" spellCheck={false} />
       </label>
       <p className="muted">Used to know which side you played, and to find your Chess.com games by link.</p>
+      <div className="lichess-account">
+        {settings.lichessToken ? (
+          <>
+            <span>Lichess account connected (opening explorer).</span>
+            <button onClick={() => void disconnectLichess()}>Disconnect</button>
+          </>
+        ) : (
+          <>
+            <span className="muted small">Connect your Lichess account to use the opening explorer (masters and players at your level). No permission is requested.</span>
+            <button onClick={() => void connectLichess()}>Connect Lichess</button>
+          </>
+        )}
+      </div>
       <label>
         Analysis depth: {settings.depth}
         <input type="range" min={10} max={22} value={settings.depth} onChange={(e) => void updateSettings({ depth: Number(e.target.value) })} />
