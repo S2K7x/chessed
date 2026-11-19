@@ -336,3 +336,54 @@ board on, so a move typed right after a correct one was read in the old
 position and dropped (the opponent end-to-end test failed 4 runs in 4 on this
 machine, on `main` as well). The board now moves first and the statistics are
 saved after: 6 runs in 6.
+
+## Visual polish and launch kit (November 2026)
+
+A look at every main screen at 1440×900 and 390×844, in both themes, from
+real captures of the app (`scripts/capture-screens.mjs`), against common
+polish checklists (consistent spacing, 150–300 ms transitions, complete states,
+phone checked on its own).
+
+- **The review fits in one screen on a laptop.** At 1440×900 the column of
+  players, board, controls and evaluation graph ended at 963 px, so the move
+  buttons and the graph were below the fold. The move buttons now share the
+  bottom player's row on wide screens and the board is sized from
+  `100vh − 360px`: the column ends at 883 px (1440×900), 783 px (1280×800) and
+  983 px (1920×1080). The board is 502 px instead of 532 px at 1440×900.
+- **The page no longer scrolls for nothing.** Screen-reader labels in the move
+  list were positioned against the page, not the list, and made the review
+  page 1775 px tall at 900 px: the list now contains them.
+- **Phone review toolbar on one row.** The five tools (new game, settings,
+  flip, threat, share) wrapped as four plus an orphan; they are now one row of
+  equal columns, without the keyboard hints (F, X) that mean nothing on a
+  touch screen. The previous and next key-moment buttons share the width.
+- **First visit.** The three "How it works" steps are numbered cards (one
+  column on phones), and "Try it on an example game", the only action that
+  needs nothing from the visitor, is the primary yellow button.
+- **Icon in the brand colours.** The app icon was green (#2f6f5e), a colour
+  used nowhere in the interface; it is now the yellow knight on warm charcoal,
+  the PNG icons are rendered from the SVG (`scripts/render-icons.mjs`, the
+  maskable one inside the 80 % safe zone), and the browser theme colour
+  follows the light or dark theme.
+
+Not adopted: a 220 ms fade when a screen opens. The axe audit measures
+contrast during the fade (opacity below 1) and reported every text on the
+screens it opened; a cosmetic transition is not worth an unreliable audit.
+
+**Launch kit.** A 35-second presentation video (1920×1080, and 1080×1920 for
+reels) and a six-slide Instagram carousel (1080×1350), rendered frame by frame
+from HTML compositions (`marketing/`) over real captures, including one frame
+per move of the Opera Game as analysed by the app. Following common guidance
+for app promo videos: the app is on screen from the first second, the story is
+told in on-screen text (feeds play muted), one idea per scene, the brand on the
+end card. Carousel: 4:5 on every slide, the hook on slide 1, one idea per
+slide, a numbered counter, the call to action last, key content clear of the
+feed overlays.
+
+Seen while capturing: the accuracy of the same example game varies between
+runs (Morphy 85 to 95, his opponents 72 to 81), as multi-threaded Stockfish
+does not search the same tree twice. The key moments and the summary text
+stayed the same, but a few of Black's moves moved between Best, Excellent and
+Good. Worth a look in a chess-intelligence cycle (a fixed seed or node count
+for the example game, or rounding the accuracy shown).
+

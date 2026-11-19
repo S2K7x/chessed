@@ -3,6 +3,14 @@
 Review your Lichess and Chess.com games with Stockfish, understand your
 mistakes, and practise the positions where you went wrong.
 
+![A mistake explained in the review: the better move, what it changes and the lesson](docs/screenshots/review-desktop.jpg)
+
+<p>
+  <img src="docs/screenshots/mobile-03-move-mistake.jpg" alt="The review on a phone" width="250" />
+  <img src="docs/screenshots/mobile-06-training.jpg" alt="The training modes on a phone" width="250" />
+  <img src="docs/screenshots/summary-light.jpg" alt="The game summary in the light theme" width="440" />
+</p>
+
 - **Local analysis.** Stockfish 19 (WebAssembly) runs in your browser; your
   games are stored on your device (IndexedDB). No account, no server costs.
 - **Transparent classification.** Brilliant (verified sacrifices), Great,
@@ -145,6 +153,20 @@ numerals for clocks and scores, Jost for the interface, Instrument Serif for
 titles and results, figurine notation drawn with the board's own pieces, and a
 single yellow accent for the main action. Dark surfaces are never pure black;
 lighter surfaces sit higher. Both fonts are bundled, so the app stays offline.
+
+## Screenshots, video and social posts
+
+The pictures above, the presentation video and the Instagram carousel are
+made from the running app, so they always show real Stockfish analysis:
+
+| Command | What it does |
+| --- | --- |
+| `node scripts/capture-screens.mjs --plies` | Screenshots of the main screens at desktop (1440×900) and phone (390×844) sizes, plus one frame per move of the example game, into `media/screens` (needs `npm run dev`; `--theme light` for the light theme) |
+| `node scripts/render-promo.mjs --format landscape` | The 35-second presentation video, 1920×1080 (`--format portrait` for a 1080×1920 reel), from `marketing/promo.html` |
+| `node scripts/render-instagram.mjs --acc 94.9,81.3` | The six 1080×1350 carousel slides from `marketing/instagram.html`; caption and alt texts in `marketing/instagram-caption.md` |
+| `node scripts/render-icons.mjs` | The PNG app icons from `public/icon.svg` |
+
+Everything is written to `media/` (not committed). The video renderer needs `ffmpeg`.
 
 ## Development
 

@@ -1,0 +1,310 @@
+<!doctype html>
+<!--
+  Chess Coach — presentation video, rendered frame by frame by
+  scripts/render-promo.mjs (window.renderAt(t) draws the frame at t seconds).
+  Open with ?format=landscape (1920×1080) or ?format=portrait (1080×1920).
+  The pictures are real captures of the app (scripts/capture-screens.mjs).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Chess Coach promo</title>
+<style>
+  @font-face { font-family: 'Jost'; src: url('../node_modules/@fontsource-variable/jost/files/jost-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; }
+  @font-face { font-family: 'Instrument Serif'; src: url('../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Instrument Serif'; font-style: italic; src: url('../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2') format('woff2'); }
+  :root {
+    --bg: #161412; --surface: #242120; --line: #3b3733; --text: #ebe7e0; --muted: #a39d93; --accent: #f0cd3f;
+  }
+  html, body { margin: 0; background: var(--bg); overflow: hidden; }
+  #stage {
+    position: relative; overflow: hidden; color: var(--text);
+    font-family: 'Jost', sans-serif; -webkit-font-smoothing: antialiased;
+    background:
+      radial-gradient(1200px 800px at 85% 15%, rgb(240 205 63 / 0.07), transparent 60%),
+      radial-gradient(1400px 900px at 10% 110%, rgb(255 240 210 / 0.05), transparent 60%),
+      var(--bg);
+  }
+  .landscape #stage { width: 1920px; height: 1080px; }
+  .portrait #stage { width: 1080px; height: 1920px; }
+  .scene { position: absolute; inset: 0; opacity: 0; }
+
+  /* Captions */
+  .cap { position: absolute; }
+  .landscape .cap { left: 120px; top: 50%; width: 560px; transform: translateY(-50%); }
+  .portrait .cap { left: 90px; right: 90px; top: 150px; }
+  .kicker { font-size: 22px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); margin-bottom: 26px; font-weight: 500; }
+  .title { font-family: 'Instrument Serif', serif; font-size: 92px; line-height: 1.02; margin: 0; font-weight: 400; }
+  .portrait .title { font-size: 104px; }
+  .title em { color: var(--accent); }
+  .sub { font-size: 30px; line-height: 1.45; color: var(--muted); margin-top: 28px; font-weight: 400; }
+  .portrait .sub { font-size: 36px; }
+  .line { display: block; will-change: transform, opacity; }
+
+  /* Devices */
+  .win {
+    position: absolute; border-radius: 18px; overflow: hidden; background: #1b1917;
+    box-shadow: 0 0 0 1px var(--line), 0 50px 120px rgb(0 0 0 / 0.55);
+  }
+  .win .bar { height: 38px; background: #201d1b; display: flex; align-items: center; gap: 9px; padding: 0 16px; border-bottom: 1px solid #2c2926; }
+  .win .bar i { width: 12px; height: 12px; border-radius: 50%; background: #3e3a36; display: block; }
+  .win .bar span { margin-left: 16px; font-size: 15px; color: #8a847b; letter-spacing: 0.02em; }
+  .win .view { position: relative; overflow: hidden; aspect-ratio: 16 / 10; }
+  .win .view img, .phone .view img { position: absolute; left: 0; top: 0; width: 100%; display: block; transform-origin: 0 0; }
+  .landscape .win { left: 740px; top: 50%; width: 1080px; transform: translateY(-50%); }
+  .portrait .win { left: 60px; width: 960px; top: 660px; }
+  .portrait .win .view { aspect-ratio: 1; }
+
+  .phone {
+    position: absolute; border-radius: 58px; background: #0c0b0a; padding: 14px;
+    box-shadow: 0 0 0 2px #34302c, 0 50px 120px rgb(0 0 0 / 0.6);
+  }
+  .phone .view { position: relative; overflow: hidden; border-radius: 44px; aspect-ratio: 390 / 844; background: #1b1917; }
+  /* Room for the status bar under the notch. */
+  .phone .view img { top: 5%; }
+  .phone .notch { position: absolute; top: 26px; left: 50%; width: 110px; height: 32px; margin-left: -55px; border-radius: 20px; background: #0c0b0a; z-index: 2; }
+
+  /* End card */
+  .end { display: grid; place-items: center; text-align: center; }
+  .end .logo { width: 150px; height: 150px; margin: 0 auto 34px; border-radius: 34px; }
+  .end h1 { font-family: 'Instrument Serif', serif; font-style: italic; font-weight: 400; font-size: 132px; margin: 0; line-height: 1; }
+  .end .pills { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; margin-top: 44px; }
+  .portrait .end .pills { max-width: 860px; margin-left: auto; margin-right: auto; }
+  .end .pill { border: 1px solid var(--line); border-radius: 999px; padding: 12px 26px; font-size: 26px; color: var(--text); background: rgb(255 255 255 / 0.03); }
+  .end .tag { font-size: 32px; color: var(--muted); margin-top: 26px; }
+  .end .badges { margin-top: 56px; display: flex; gap: 16px; justify-content: center; align-items: center; }
+  .badge { width: 46px; height: 46px; border-radius: 9px; display: grid; place-items: center; font-weight: 700; font-size: 24px; color: #fff; }
+
+  /* Progress line at the bottom */
+  #progress { position: absolute; left: 0; bottom: 0; height: 5px; background: var(--accent); opacity: 0.85; }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <!-- 1. Hook: the review stepping through a real game -->
+  <section class="scene" data-scene="hook">
+    <div class="cap">
+      <div class="kicker line">Chess Coach</div>
+      <h2 class="title"><span class="line">Why did you</span><span class="line"><em>lose</em> that game?</span></h2>
+      <div class="sub line">Find out, move by move.</div>
+    </div>
+    <div class="win"><div class="bar"><i></i><i></i><i></i><span>Chess Coach</span></div><div class="view"><img data-plies="0-12" alt="" /></div></div>
+  </section>
+
+  <!-- 2. Import -->
+  <section class="scene" data-scene="import">
+    <div class="cap">
+      <div class="kicker line">1 · Import</div>
+      <h2 class="title"><span class="line">Paste a link.</span><span class="line"><em>That's it.</em></span></h2>
+      <div class="sub line">Lichess, Chess.com or any PGN. Or list your last 20 games from your username.</div>
+    </div>
+    <div class="win"><div class="bar"><i></i><i></i><i></i><span>Chess Coach</span></div><div class="view"><img src="../media/screens/desktop-01-home.png" alt="" /></div></div>
+  </section>
+
+  <!-- 3. Engine -->
+  <section class="scene" data-scene="engine">
+    <div class="cap">
+      <div class="kicker line">2 · Analyse</div>
+      <h2 class="title"><span class="line">Stockfish checks</span><span class="line"><em>every move.</em></span></h2>
+      <div class="sub line">Right in your browser. Your games never leave your device.</div>
+    </div>
+    <div class="win"><div class="bar"><i></i><i></i><i></i><span>Chess Coach</span></div><div class="view"><img data-plies="12-33" alt="" /></div></div>
+  </section>
+
+  <!-- 4. Coach -->
+  <section class="scene" data-scene="coach">
+    <div class="cap">
+      <div class="kicker line">3 · Understand</div>
+      <h2 class="title"><span class="line">Mistakes,</span><span class="line"><em>explained.</em></span></h2>
+      <div class="sub line">The better move, what it changes, and the lesson to keep. Every claim is checked by the engine.</div>
+    </div>
+    <div class="win"><div class="bar"><i></i><i></i><i></i><span>Chess Coach</span></div><div class="view"><img src="../media/screens/desktop-03-move-mistake.png" alt="" /></div></div>
+  </section>
+
+  <!-- 5. Training -->
+  <section class="scene" data-scene="train">
+    <div class="cap">
+      <div class="kicker line">4 · Train</div>
+      <h2 class="title"><span class="line">Learn from</span><span class="line"><em>your own</em> games.</span></h2>
+      <div class="sub line">Your mistakes come back as puzzles, just before you would forget them.</div>
+    </div>
+    <div class="win"><div class="bar"><i></i><i></i><i></i><span>Chess Coach</span></div><div class="view"><img src="../media/screens/desktop-06-training.png" alt="" /></div></div>
+  </section>
+
+  <!-- 6. Everywhere -->
+  <section class="scene" data-scene="devices">
+    <div class="cap">
+      <div class="kicker line">Desktop &amp; mobile</div>
+      <h2 class="title"><span class="line">At your desk</span><span class="line"><em>or on the go.</em></span></h2>
+      <div class="sub line">Works offline once loaded. Installs like an app.</div>
+    </div>
+    <div class="phone p1"><div class="notch"></div><div class="view"><img src="../media/screens/mobile-01-home.png" alt="" /></div></div>
+    <div class="phone p2"><div class="notch"></div><div class="view"><img src="../media/screens/mobile-03-move-mistake.png" alt="" /></div></div>
+    <div class="phone p3"><div class="notch"></div><div class="view"><img src="../media/screens/mobile-06-training.png" alt="" /></div></div>
+  </section>
+
+  <!-- 7. End card -->
+  <section class="scene end" data-scene="end">
+    <div>
+      <img class="logo line" src="../public/icon.svg" alt="" />
+      <h1 class="line">Chess Coach</h1>
+      <div class="tag line">Review your games. Understand your mistakes. Improve.</div>
+      <div class="pills line">
+        <span class="pill">Free</span><span class="pill">Open source</span><span class="pill">No account</span><span class="pill">Private by design</span>
+      </div>
+      <div class="badges line">
+        <span class="badge" style="background:#9a82e6">!!</span>
+        <span class="badge" style="background:#6a9be6">!</span>
+        <span class="badge" style="background:#4fb47f">✓</span>
+        <span class="badge" style="background:#d6a100">?!</span>
+        <span class="badge" style="background:#e07b24">?</span>
+        <span class="badge" style="background:#e0574f">??</span>
+      </div>
+    </div>
+  </section>
+
+  <div id="progress"></div>
+</div>
+
+<script>
+  const format = new URLSearchParams(location.search).get('format') || 'landscape';
+  document.documentElement.className = format;
+  const P = format === 'portrait';
+
+  // Timeline (seconds). Scenes overlap by FADE for a cross-fade.
+  const FADE = 0.45;
+  const SCENES = [
+    ['hook', 0, 4.6],
+    ['import', 4.6, 9.2],
+    ['engine', 9.2, 14.6],
+    ['coach', 14.6, 21],
+    ['train', 21, 25.6],
+    ['devices', 25.6, 30.4],
+    ['end', 30.4, 35],
+  ];
+  const DURATION = 35;
+  window.DURATION = DURATION;
+
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3);
+  const easeInOut = (x) => { x = clamp(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+  const lerp = (a, b, x) => a + (b - a) * x;
+
+  // Move-by-move frames of the real review.
+  const plyUrl = (i) => `../media/screens/plies/desktop-${String(i).padStart(2, '0')}.png`;
+  const plyCache = [];
+  for (let i = 0; i <= 33; i++) { const im = new Image(); im.src = plyUrl(i); plyCache.push(im); }
+
+  /** Camera on a screenshot: zoom s around a focus point (fractions of the picture). */
+  function camera(img, s, fx, fy) {
+    const view = img.parentElement;
+    const w = view.clientWidth, h = view.clientHeight;
+    if (P) s = 1 + (s - 1) * 0.4; // the portrait window already zooms in
+    // Never leave the view partly empty (the portrait window is taller than the picture).
+    s *= Math.max(1, h / (w * (img.naturalHeight / img.naturalWidth)));
+    const iw = w * s, ih = (img.naturalHeight / img.naturalWidth) * iw;
+    const x = clamp(w / 2 - fx * iw, w - iw, 0);
+    const y = clamp(h / 2 - fy * ih, Math.min(0, h - ih), 0);
+    img.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+  }
+
+  function lines(scene, local, delay = 0.15) {
+    scene.querySelectorAll('.line').forEach((el, i) => {
+      const k = easeOut((local - 0.15 - i * delay) / 0.7);
+      el.style.opacity = k;
+      el.style.transform = `translateY(${(1 - k) * 34}px)`;
+    });
+  }
+
+  function deviceIn(el, local, base) {
+    const k = easeOut((local - 0.05) / 0.9);
+    el.style.opacity = k;
+    el.style.transform = `${base} translateY(${(1 - k) * 60}px)`;
+  }
+
+  const draw = {
+    hook(s, t, d) {
+      lines(s, t);
+      const win = s.querySelector('.win');
+      deviceIn(win, t, P ? '' : 'translateY(-50%)');
+      const img = s.querySelector('img');
+      const i = Math.min(12, Math.floor(clamp((t - 0.6) / (d - 1.1)) * 13));
+      if (img.dataset.i !== String(i)) { img.src = plyUrl(i); img.dataset.i = i; }
+      camera(img, lerp(1.0, 1.08, easeInOut(t / d)), 0.4, 0.45);
+    },
+    import(s, t, d) {
+      lines(s, t);
+      deviceIn(s.querySelector('.win'), t, P ? '' : 'translateY(-50%)');
+      camera(s.querySelector('img'), lerp(1.0, 1.55, easeInOut((t - 0.8) / (d - 1.2))), 0.3, 0.28);
+    },
+    engine(s, t, d) {
+      lines(s, t);
+      deviceIn(s.querySelector('.win'), t, P ? '' : 'translateY(-50%)');
+      const img = s.querySelector('img');
+      const i = 12 + Math.min(21, Math.floor(clamp((t - 0.4) / (d - 0.9)) * 22));
+      if (img.dataset.i !== String(i)) { img.src = plyUrl(i); img.dataset.i = i; }
+      camera(img, lerp(1.12, 1.0, easeInOut(t / d)), 0.4, 0.5);
+    },
+    coach(s, t, d) {
+      lines(s, t);
+      deviceIn(s.querySelector('.win'), t, P ? '' : 'translateY(-50%)');
+      // Start on the whole screen, then move in on the explanation.
+      const k = easeInOut((t - 1.2) / 2.6);
+      camera(s.querySelector('img'), lerp(1.0, 1.6, k), lerp(0.5, 0.74, k), lerp(0.5, 0.47, k));
+    },
+    train(s, t, d) {
+      lines(s, t);
+      deviceIn(s.querySelector('.win'), t, P ? '' : 'translateY(-50%)');
+      camera(s.querySelector('img'), lerp(1.0, 1.15, easeInOut(t / d)), 0.3, 0.25);
+    },
+    devices(s, t) {
+      lines(s, t);
+      const phones = [...s.querySelectorAll('.phone')];
+      const W = P ? 340 : 330;
+      const layout = P
+        ? [[30, 800, -5], [370, 740, 0], [710, 800, 5]]
+        : [[760, 150, -5], [1110, 100, 0], [1460, 150, 5]];
+      phones.forEach((ph, i) => {
+        const [x, y, r] = layout[i];
+        const k = easeOut((t - 0.2 - i * 0.18) / 0.9);
+        ph.style.width = `${W}px`;
+        ph.style.left = `${x}px`;
+        ph.style.top = `${y}px`;
+        ph.style.opacity = k;
+        ph.style.transform = `translateY(${(1 - k) * 120}px) rotate(${r * k}deg)`;
+        const img = ph.querySelector('img');
+        img.style.transform = 'none';
+      });
+    },
+    end(s, t) {
+      lines(s, t, 0.18);
+    },
+  };
+
+  window.renderAt = (time) => {
+    for (const [name, a, b] of SCENES) {
+      const s = document.querySelector(`[data-scene="${name}"]`);
+      const inK = name === 'hook' ? 1 : clamp((time - a) / FADE);
+      const outK = name === 'end' ? 1 : clamp((b + FADE - time) / FADE);
+      const op = Math.min(inK, outK);
+      s.style.opacity = op;
+      s.style.visibility = op > 0 ? 'visible' : 'hidden';
+      if (op > 0) draw[name](s, time - a, b - a);
+      // The outgoing words leave in the first half of the cross-fade, before the new ones arrive.
+      const cap = s.querySelector('.cap');
+      if (cap) cap.style.opacity = name === 'end' ? 1 : clamp((outK - 0.5) * 2);
+    }
+    document.getElementById('progress').style.width = `${(time / DURATION) * 100}%`;
+    // Resolves once every picture now shown is decoded, so a frame is never caught half-loaded.
+    return Promise.all([...document.images].filter((im) => im.closest('.scene').style.visibility === 'visible').map((im) => im.decode().catch(() => undefined)));
+  };
+
+  window.ready = Promise.all([
+    document.fonts.ready,
+    ...[...document.images, ...plyCache].map((im) => im.decode().catch(() => undefined)),
+  ]);
+  window.ready.then(() => window.renderAt(Number(new URLSearchParams(location.search).get('t') || 0)));
+</script>
+</body>
+</html>

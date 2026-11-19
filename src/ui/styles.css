@@ -477,10 +477,23 @@ textarea {
   padding-top: 120px;
 }
 .review-board {
-  width: min(calc(100vh - 330px), 640px, calc(100vw - 790px));
+  /* Sized so that players, board, controls and graph fit in one screen. */
+  width: min(calc(100vh - 360px), 640px, calc(100vw - 790px));
   min-width: 280px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
+}
+.review-board > * {
+  grid-column: 1 / -1;
+}
+/* On wide screens the move buttons share the bottom player's row. */
+@media (min-width: 961px) {
+  .review-board > .player:has(+ .board-controls),
+  .review-board > .player:has(+ .board-controls) + .board-controls {
+    grid-column: auto;
+    align-self: center;
+  }
 }
 .board-row {
   display: grid;
@@ -775,6 +788,9 @@ textarea {
 .coach-nav {
   justify-content: space-between;
 }
+.coach-nav button {
+  flex: 1 1 auto;
+}
 .coach-meta {
   margin-top: 10px !important;
   font-size: 13px;
@@ -916,6 +932,8 @@ textarea {
 
 /* Move list: a ruled grid, figurine notation. */
 .movelist {
+  /* Contains the screen-reader labels, which would otherwise lengthen the page. */
+  position: relative;
   list-style: none;
   margin: 0;
   padding: 0;
@@ -1412,7 +1430,17 @@ cg-board square.move-dest.hover {
   .review-tools {
     order: 2;
     padding-top: 0;
-    grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .review-tools .tool {
+    min-width: 0;
+    padding: 8px 2px;
+  }
+  .review-tools .tool kbd {
+    display: none;
   }
   .review-board {
     order: 1;
@@ -1991,18 +2019,50 @@ input[type='radio'] {
 }
 .first-steps {
   display: grid;
-  gap: 14px;
-  max-width: 720px;
+  gap: 18px;
 }
+/* The three steps, as numbered cards. */
 .steps {
   margin: 0;
-  padding-left: 22px;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
   display: grid;
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
 }
-.steps li::marker {
-  font-family: var(--font-display);
+.steps li {
+  counter-increment: step;
+  position: relative;
+  padding: 18px 18px 18px 64px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
   color: var(--muted);
+}
+.steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 18px;
+  top: 12px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 40px;
+  line-height: 1;
+  color: var(--link);
+}
+.steps strong {
+  display: block;
+  color: var(--text);
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+@media (max-width: 960px) {
+  .steps {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 }
 .first-steps .import-actions {
   align-items: center;
