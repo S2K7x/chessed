@@ -91,6 +91,13 @@ titles and results, figurine notation drawn with the board's own pieces, and a
 single yellow accent for the main action. Dark surfaces are never pure black;
 lighter surfaces sit higher. Both fonts are bundled, so the app stays offline.
 
+## Development
+
+The project is developed in continuous improvement cycles with Claude Code:
+the standing instructions are in [CLAUDE.md](CLAUDE.md), and the focused
+missions (chess intelligence, coach, performance, design, learning, security,
+research, innovation) in [docs/improvement/](docs/improvement/README.md).
+
 ## Scripts
 
 | Command | What it does |
