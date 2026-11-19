@@ -24,6 +24,12 @@ export interface Exercise {
   playedSan: string;
   bestSan: string;
   classification: string;
+  /**
+   * "best" (default): find the move you should have played (`fen` is before your move).
+   * "threat": find how the opponent punishes your move (`fen` is after it, the
+   * opponent to move, `color` is the opponent's).
+   */
+  kind?: 'best' | 'threat';
   theme?: string;
   createdAt: number;
   /** Next review time (ms), mirrored from the card for indexing. */
@@ -67,6 +73,23 @@ export async function exercisesFromReview(game: Game, review: GameReview, color:
     const theme = errorTheme(m);
     if (theme) ex.theme = theme;
     out.push(ex);
+
+    // When the move allowed a concrete punishment, a second card trains the
+    // blunder check: from the position after the move, find the opponent's reply.
+    const punish = m.facts.find((f) => f.kind === 'material_lost' || f.kind === 'mate_allowed');
+    const reply = punish && 'line' in punish ? punish.line[0] : undefined;
+    if (reply) {
+      out.push({
+        ...ex,
+        id: `${game.id}:${m.ply}:threat`,
+        kind: 'threat',
+        fen: move.fenAfter,
+        color: color === 'white' ? 'black' : 'white',
+        bestSan: reply.san,
+        card: s.newCard({ now }) as unknown as SchedulerCard,
+        attempts: [],
+      });
+    }
   });
   return out;
 }

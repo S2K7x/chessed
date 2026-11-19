@@ -129,4 +129,27 @@ describe('training', () => {
     const again = await reviewExercise(ex!, 'again', 0, 2, now);
     expect(again.due).toBeLessThan(next.due);
   });
+
+  it('adds a blunder-check card when the mistake allowed a concrete punishment', async () => {
+    const game = parseGame('1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0');
+    const punish = replayUci(game.moves[5]!.fenAfter, ['h5f7']);
+    const moves = game.moves.map((m, i) => ({
+      ...mv(m.ply, i === 5 ? 'blunder' : 'best', i === 5 ? { facts: [{ kind: 'mate_allowed', mateIn: 1, line: punish, backRank: false }] } : {}),
+      san: m.san,
+      uci: m.uci,
+      bestLine: i === 5 ? replayUci(m.fenBefore, ['g7g6']) : [],
+    }));
+    const r = { moves } as unknown as GameReview;
+    const cards = await exercisesFromReview(game, r, 'black', new Date('2026-11-18T10:00:00Z'));
+    expect(cards).toHaveLength(2);
+    expect(cards[1]).toMatchObject({
+      id: `${game.id}:6:threat`,
+      kind: 'threat',
+      fen: game.moves[5]!.fenAfter,
+      color: 'white',
+      bestSan: 'Qxf7#',
+      playedSan: 'Nf6',
+    });
+    expect(cards[1]!.card).not.toBe(cards[0]!.card);
+  });
 });

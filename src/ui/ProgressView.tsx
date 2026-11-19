@@ -58,6 +58,10 @@ export function ProgressView() {
           label="Errors in time trouble"
           value={p.timeTrouble.withClock ? `${Math.round((100 * p.timeTrouble.errors) / p.timeTrouble.withClock)}%` : '–'}
         />
+        <Tile
+          label="Serious errors played fast"
+          value={p.fastErrors.withClock ? `${Math.round((100 * p.fastErrors.errors) / p.fastErrors.withClock)}%` : '–'}
+        />
         <Tile label="Positions to review today" value={String(dueCount)} action={dueCount > 0 ? { label: 'Train now', run: () => void startTraining() } : undefined} />
       </section>
 

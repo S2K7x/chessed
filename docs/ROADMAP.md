@@ -34,3 +34,33 @@ Not done, and why:
   today.
 - **Native mobile app (Capacitor).** The installable offline web app covers
   phones; a native shell adds little until features need native APIs.
+
+## After phase 5: ideas from other tools
+
+Done:
+
+- **"What does my opponent threaten?"** (button or `x` in the review). The side
+  to move passes (a null move) and the engine plays the opponent's best move; a
+  mate or a material gain is reported as a threat, with an arrow. Same idea as
+  Lichess' Show threat.
+- **Blunder-check cards.** A mistake that allowed a concrete punishment (mate or
+  material) gives a second training card: from the position after your move,
+  find your opponent's best reply. Players' most common advice is to check the
+  opponent's replies before moving; this trains that check on your own games.
+- **Fast errors.** Moves played much faster than your own pace in the game
+  (less than half your average, and under 10 s) are marked in the move list;
+  the summary and the dashboard count serious errors played fast.
+- **Annotated PGN export**: classes as NAGs, the evaluation as `[%eval]`, the
+  coach's summary as comments and the better line as a variation. Imports into
+  Lichess studies and ChessBase.
+
+Tried and not adopted:
+
+- **Analysing positions from the last to the first.** Running the engine
+  backwards through the game keeps the hash table useful when the next
+  position looks ahead into a line already searched. Measured at depth 14 on
+  three games: 23.1 s → 19.7 s on a 91-ply game, but 5.9 s → 7.5 s and
+  7.7 s → 8.3 s on shorter ones, with the best move changing in 17 to 40 % of
+  positions between the two orders (single-threaded search is deterministic only
+  for a given hash state). No clear gain; the second, deeper pass on critical
+  moments is what makes results stable.

@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useStore } from '../app/store';
 import { formatLine, type Arrow } from '../core/explain';
-import { hintsFor } from '../core/hints';
+import { hintsFor, threatHintsFor } from '../core/hints';
 import { Board } from './Board';
 import { ClassBadge } from './ClassBadge';
 import type { Classification } from '../core/classify';
@@ -14,23 +14,29 @@ export function TrainingView() {
   const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView } = useStore.getState();
   const ex = training?.queue[training.index];
   const move = training?.move;
+  const isThreat = ex?.kind === 'threat';
+  const hintsOf = isThreat ? threatHintsFor : hintsFor;
 
   const arrows = useMemo(() => {
     const out: Arrow[] = [];
     if (!training || !move) return out;
     if (training.status === 'solving' || training.status === 'judging') {
-      for (const h of hintsFor(move).slice(0, training.hints)) {
+      for (const h of hintsOf(move).slice(0, training.hints)) {
         if (h.arrow) out.push({ ...h.arrow, brush: 'best' });
         else if (h.circle) out.push({ from: h.circle, to: h.circle, brush: 'best' });
       }
       const r = training.verdict?.refutation[0];
       if (r && training.verdict?.result !== 'solved') out.push({ from: r.uci.slice(0, 2), to: r.uci.slice(2, 4), brush: 'threat' });
+    } else if (isThreat) {
+      const r = move.facts.find((f) => f.kind === 'material_lost' || f.kind === 'mate_allowed');
+      const first = r && 'line' in r ? r.line[0] : undefined;
+      if (first) out.push({ from: first.uci.slice(0, 2), to: first.uci.slice(2, 4), brush: 'threat' });
     } else {
       const b = move.bestLine[0];
       if (b) out.push({ from: b.uci.slice(0, 2), to: b.uci.slice(2, 4), brush: 'best' });
     }
     return out;
-  }, [training, move]);
+  }, [training, move, isThreat, hintsOf]);
 
   const onMove = useCallback((uci: string) => void trainingAttempt(uci), [trainingAttempt]);
 
@@ -68,7 +74,9 @@ export function TrainingView() {
   const solving = training.status === 'solving' || training.status === 'judging';
   const v = training.verdict;
   const game = training.game;
-  const opponent = game ? (ex.color === 'white' ? game.black.name : game.white.name) : '';
+  // On a blunder-check card `ex.color` is the opponent's: the player is the other side.
+  const playerColor = isThreat ? (ex.color === 'white' ? 'black' : 'white') : ex.color;
+  const opponent = game ? (playerColor === 'white' ? game.black.name : game.white.name) : '';
   return (
     <div className="training">
       <div className="training-board">
@@ -76,7 +84,11 @@ export function TrainingView() {
           Position {training.index + 1} of {training.queue.length}
           {ex.theme ? ` · ${ex.theme}` : ''}
         </p>
-        <Board fen={ex.fen} orientation={ex.color} arrows={arrows} {...(solving && training.status === 'solving' ? { onMove } : {})} />
+        <Board
+          fen={ex.fen}
+          orientation={playerColor}
+          {...(isThreat && move ? { lastMove: move.uci } : {})}
+          arrows={arrows} {...(solving && training.status === 'solving' ? { onMove } : {})} />
       </div>
       <aside className="training-side">
         <section className="coach" aria-live="polite">
@@ -84,7 +96,12 @@ export function TrainingView() {
             <ClassBadge c={ex.classification as Classification} /> From your game against {opponent}
             {game?.date ? ` (${game.date})` : ''}
           </p>
-          <h2 className="coach-title">{ex.color === 'white' ? 'White' : 'Black'} to play. Find the best move.</h2>
+          <h2 className="coach-title">
+            {isThreat
+              ? `You played ${ex.playedSan}. Your opponent to move: how do they punish it?`
+              : `${ex.color === 'white' ? 'White' : 'Black'} to play. Find the best move.`}
+          </h2>
+          {isThreat && <p className="muted small">Blunder check: find your opponent's best reply.</p>}
           {training.status === 'judging' && <p className="coach-summary">Checking your move…</p>}
           {solving && v && v.result !== 'solved' && (
             <p className={`coach-summary ${v.result === 'close' ? 'verdict-close' : 'verdict-bad'}`}>
@@ -94,7 +111,7 @@ export function TrainingView() {
           )}
           {solving &&
             move &&
-            hintsFor(move)
+            hintsOf(move)
               .slice(0, training.hints)
               .map((h, i) => (
                 <p key={i} className="hint-line">
@@ -104,14 +121,16 @@ export function TrainingView() {
           {training.status === 'solved' && (
             <>
               <p className="coach-summary verdict-good">
-                Correct: {v?.san}. In the game you played {ex.playedSan}.
+                {isThreat ? `Correct: ${v?.san} punishes ${ex.playedSan}.` : `Correct: ${v?.san}. In the game you played ${ex.playedSan}.`}
               </p>
               <p className="muted small">Recorded as: {GRADE_TEXT[training.results[training.results.length - 1] ?? 'good']}.</p>
             </>
           )}
           {training.status === 'failed' && (
             <p className="coach-summary">
-              The move was {ex.bestSan}. In the game you played {ex.playedSan}. This position will come back soon.
+              {isThreat
+                ? `Your opponent could play ${ex.bestSan}. This position will come back soon.`
+                : `The move was ${ex.bestSan}. In the game you played ${ex.playedSan}. This position will come back soon.`}
             </p>
           )}
           {!solving && move && (

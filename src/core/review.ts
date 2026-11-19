@@ -40,6 +40,8 @@ export interface MoveReview {
   timeSpentMs?: number;
   /** Played with at most 10% of the initial time left (and at least 10 s). */
   timeTrouble: boolean;
+  /** Played in under half the player's average time per move in this game, and under 10 s. */
+  fast?: boolean;
 }
 
 export interface GameReview {
@@ -240,6 +242,7 @@ export function buildReview(
   });
 
   markKeyMoments(moves, opening?.lastBookPly);
+  markFastMoves(moves);
 
   const startColor = turnOf(game.startFen);
   const counted = (i: number) => {
@@ -302,6 +305,16 @@ function clockInfo(game: Game, i: number): Pick<MoveReview, 'clockMs' | 'timeSpe
   };
   if (prevClock !== undefined) out.timeSpentMs = Math.max(0, prevClock - m.clockMs + incMs);
   return out;
+}
+
+/** Moves played much faster than the player's own average in this game. */
+function markFastMoves(moves: MoveReview[]): void {
+  for (const color of ['white', 'black'] as const) {
+    const timed = moves.filter((m) => m.color === color && m.timeSpentMs !== undefined);
+    if (timed.length < 5) continue;
+    const avg = timed.reduce((a, m) => a + m.timeSpentMs!, 0) / timed.length;
+    for (const m of timed) m.fast = m.timeSpentMs! < Math.min(avg / 2, 10_000);
+  }
 }
 
 /** Key moments: last book move, then the biggest errors and great moves, at most 8 per side. */

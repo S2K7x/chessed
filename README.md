@@ -26,8 +26,14 @@ mistakes, and practise the positions where you went wrong.
   theme per 100 opportunities (missed tactics are counted against the positions
   where the tactic existed), the three themes to work on first, the errors you
   no longer make, and your openings.
+- **Threats and blunder checks.** Ask what your opponent threatens in any
+  position (`x`). Mistakes that allowed a concrete punishment also come back as
+  blunder checks: find your opponent's best reply to your move.
 - **Spaced training.** Every mistake of yours becomes a position to solve again,
   scheduled with FSRS so it comes back when you are about to forget it.
+- **Time use.** Time spent on each move, and errors played much faster than
+  your own pace.
+- **Annotated PGN export** for Lichess studies or ChessBase.
 - **Your openings.** In the opening, see what you played in your other games
   from the same position, and (with a Lichess login) what masters and players
   around your rating play. The dashboard lists the choices you have not settled.

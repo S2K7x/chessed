@@ -386,6 +386,18 @@ textarea {
   margin: 0;
 }
 
+.threat-line {
+  margin: 0;
+  padding: 6px 10px;
+  border-left: 3px solid var(--c-blunder);
+  background: color-mix(in srgb, var(--c-blunder) 8%, var(--surface));
+  border-radius: 0 6px 6px 0;
+  font-size: 14px;
+}
+.board-controls button[aria-pressed='true'] {
+  border-color: var(--c-blunder);
+}
+
 /* Eval bar */
 .evalbar {
   position: relative;
@@ -742,6 +754,16 @@ textarea {
   background: var(--surface-2);
   border-color: var(--line);
   font-weight: 700;
+}
+.movelist-time {
+  margin-left: auto;
+  margin-right: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.movelist-time.is-fast {
+  color: var(--c-mistake);
 }
 .movelist-cell.is-empty {
   pointer-events: none;

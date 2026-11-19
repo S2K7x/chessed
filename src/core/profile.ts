@@ -55,6 +55,8 @@ export interface Profile {
   openings: { name: string; color: Color; games: number; score: number; avgLossAfterBook?: number }[];
   /** Errors made with little time left, among errors whose clock is known. */
   timeTrouble: { errors: number; totalErrors: number; withClock: number };
+  /** Serious errors played much faster than the player's usual pace, among serious errors with clocks. */
+  fastErrors: { errors: number; withClock: number };
   /** Up to three themes to work on first: rate × average cost. */
   priorities: ThemeStat[];
   /** Themes whose rate fell by at least half between the older and recent games. */
@@ -191,10 +193,16 @@ export function computeProfile(input: ProfileEntry[]): Profile {
   let errors = 0;
   let inTrouble = 0;
   let withClock = 0;
+  let fastSerious = 0;
+  let seriousWithClock = 0;
   for (const { review, color } of entries) {
     for (const m of review.moves) {
       if (m.color !== color) continue;
-      if (SERIOUS.has(m.assessment.classification)) serious++;
+      if (SERIOUS.has(m.assessment.classification)) {
+        serious++;
+        if (m.timeSpentMs !== undefined) seriousWithClock++;
+        if (m.fast) fastSerious++;
+      }
       if (ERROR_CLASSES.has(m.assessment.classification)) {
         errors++;
         if (m.clockMs !== undefined) withClock++;
@@ -258,6 +266,7 @@ export function computeProfile(input: ProfileEntry[]): Profile {
     themes,
     openings,
     timeTrouble: { errors: inTrouble, totalErrors: errors, withClock },
+    fastErrors: { errors: fastSerious, withClock: seriousWithClock },
     priorities,
     improved,
   };

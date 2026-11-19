@@ -89,6 +89,12 @@ export function summarise(review: GameReview, color: Color): string[] {
     out.push(`Theme to work on: ${top[0]}.${lesson ? ` ${lesson}` : ''}`);
   }
 
+  const fastSerious = errors.filter((m) => m.fast && m.assessment.classification !== 'inaccuracy').length;
+  if (fastSerious > 0) {
+    out.push(
+      `${fastSerious === 1 ? 'One serious error was' : `${fastSerious} serious errors were`} played much faster than your usual pace: when the position is sharp, take a moment for a blunder check.`,
+    );
+  }
   const inTrouble = errors.filter((m) => m.timeTrouble).length;
   if (inTrouble > 0) out.push(`${plural(inTrouble, 'error')} came with little time left on the clock.`);
 

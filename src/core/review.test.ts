@@ -45,6 +45,27 @@ describe('clocks', () => {
   });
 });
 
+describe('fast moves', () => {
+  it('flags moves played much faster than the player\'s own pace', async () => {
+    // 60+0: White spends 10 s per move except 4. d4 (1 s); Black always 1 s.
+    const game = parseGame(`[TimeControl "60+0"]
+
+1. e4 { [%clk 0:00:50] } e5 { [%clk 0:00:59] } 2. Nf3 { [%clk 0:00:40] } Nc6 { [%clk 0:00:58] }
+3. Bc4 { [%clk 0:00:30] } Bc5 { [%clk 0:00:57] } 4. d4 { [%clk 0:00:29] } exd4 { [%clk 0:00:56] }
+5. O-O { [%clk 0:00:19] } Nf6 { [%clk 0:00:55] } 6. e5 { [%clk 0:00:09] } d5 { [%clk 0:00:54] } *`);
+    const review = await analyseGame(game, flat, openings as unknown as OpeningBook, { depth: 20, multiPv: 1 });
+    const fast = review.moves.filter((m) => m.fast).map((m) => m.san);
+    expect(fast).toEqual(['d4']);
+    expect(review.moves.filter((m) => m.color === 'black').every((m) => m.fast === false)).toBe(true);
+  });
+
+  it('does not flag anything without enough clock data', async () => {
+    const game = parseGame('1. e4 { [%clk 0:00:50] } e5 { [%clk 0:00:59] } 2. Nf3 { [%clk 0:00:49] } *');
+    const review = await analyseGame(game, flat, openings as unknown as OpeningBook, { depth: 20, multiPv: 1 });
+    expect(review.moves.some((m) => m.fast)).toBe(false);
+  });
+});
+
 describe('summary', () => {
   it('writes a few sentences per side', async () => {
     const game = parseGame('1. e4 e5 2. Nf3 Nc6 *');

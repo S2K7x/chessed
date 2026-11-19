@@ -56,12 +56,23 @@ test('progress dashboard, spaced training and backup', async ({ page }, info) =>
   await expect(page.locator('.hint-line')).toHaveCount(1);
   await page.screenshot({ path: `test-results/training-${info.project.name}.png`, fullPage: true });
   await page.getByRole('button', { name: 'Show the answer' }).click();
-  await expect(page.getByText(/The move was/)).toBeVisible();
+  await expect(page.getByText(/The move was|Your opponent could play/)).toBeVisible();
   const total = Number((await page.getByText(/Position 1 of \d+/).innerText()).match(/of (\d+)/)![1]);
+  let blunderChecks = (await page.getByText('how do they punish it?').count()) > 0 ? 1 : 0;
   for (let i = 1; i < total; i++) {
     await page.getByRole('button', { name: 'Next position' }).click();
+    await expect(page.getByText(`Position ${i + 1} of ${total}`)).toBeVisible();
+    if ((await page.getByText('how do they punish it?').count()) > 0) {
+      blunderChecks++;
+      // Let the board finish animating from the previous position.
+      await expect(page.locator('.coach-kicker')).toContainText('against Legall');
+      if (blunderChecks === 1) await page.waitForTimeout(400);
+      if (blunderChecks === 1) await page.screenshot({ path: `test-results/blunder-check-${info.project.name}.png`, fullPage: true });
+    }
     await page.getByRole('button', { name: 'Show the answer' }).click();
   }
+  // Mistakes that allowed a concrete punishment also come back as blunder checks.
+  expect(blunderChecks).toBeGreaterThanOrEqual(1);
   await page.getByRole('button', { name: 'Finish' }).click();
   await expect(page.getByRole('heading', { name: 'Session done' })).toBeVisible();
   await expect(page.locator('.nav .count')).toHaveCount(0);

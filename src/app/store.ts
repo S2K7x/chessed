@@ -28,6 +28,8 @@ import { buildRepertoire, type Repertoire } from '../core/repertoire';
 import { explore, ExplorerAuthError, ratingGroupsFor, type ExplorerResult } from '../core/explorer';
 import { epdOf } from '../core/chess';
 import { finishLichessLogin, lichessLogout, startLichessLogin } from './lichessAuth';
+import { findThreat, type Threat } from '../core/threat';
+import { annotatedPgn } from '../core/annotate';
 import { chesscomUserGames, lichessUserGames } from '../core/import/fetchers';
 import { positionWhiteWinPercent } from '../core/eval';
 import { db, DEFAULT_APP_SETTINGS, evalCache, loadSettings, saveSettings, type Settings } from '../db/db';
@@ -107,6 +109,9 @@ interface State {
   repertoire?: Repertoire;
   /** Opening explorer results by `${source}|${epd}`. */
   explorer: Record<string, ExplorerResult | 'loading' | { error: string; auth?: boolean }>;
+  /** "What does my opponent threaten?" shown for the current position. */
+  showThreats: boolean;
+  threats: Record<string, Threat | 'loading' | 'none-in-check' | { error: string }>;
 }
 
 export interface TrainingState {
@@ -161,6 +166,9 @@ interface Actions {
   exportBackup(): Promise<void>;
   importBackup(file: File): Promise<void>;
   loadExplorer(fen: string, source: 'masters' | 'lichess'): Promise<void>;
+  toggleThreats(): void;
+  loadThreat(fen: string): Promise<void>;
+  exportAnnotatedPgn(): void;
   connectLichess(): Promise<void>;
   disconnectLichess(): Promise<void>;
 }
@@ -248,6 +256,8 @@ export const useStore = create<State & Actions>((set, get) => ({
   coachTexts: {},
   dueCount: 0,
   explorer: {},
+  showThreats: false,
+  threats: {},
 
   async init() {
     let settings = await loadSettings();
@@ -714,6 +724,33 @@ export const useStore = create<State & Actions>((set, get) => ({
     await get().updateSettings({ lichessToken: '' });
     set({ explorer: {} });
   },
+  toggleThreats() {
+    set({ showThreats: !get().showThreats });
+  },
+
+  async loadThreat(fen) {
+    const { threats, settings } = get();
+    if (threats[fen]) return;
+    set({ threats: { ...threats, [fen]: 'loading' } });
+    try {
+      const t = await findThreat(fen, engineForPractice(), Math.max(12, settings.depth - 2));
+      set({ threats: { ...get().threats, [fen]: t ?? 'none-in-check' } });
+    } catch (err) {
+      set({ threats: { ...get().threats, [fen]: { error: errorText(err) } } });
+    }
+  },
+
+  exportAnnotatedPgn() {
+    const { game, review } = get();
+    if (!game || !review) return;
+    const url = URL.createObjectURL(new Blob([annotatedPgn(game, review)], { type: 'application/x-chess-pgn' }));
+    const a = document.createElement('a');
+    a.href = url;
+    const name = `${game.white.name}-${game.black.name}${game.date ? `-${game.date}` : ''}`.replace(/[^\w.-]+/g, '_');
+    a.download = `${name}.pgn`;
+    a.click();
+    URL.revokeObjectURL(url);
+  },
 }));
 
 /** The player's repertoire from every stored game where their side is known. */
@@ -744,7 +781,8 @@ async function loadTrainingItem(index: number): Promise<void> {
   if (!t || !ex) return;
   const [game, stored] = await Promise.all([db.games.get(ex.gameId), db.reviews.get(ex.gameId)]);
   const move = stored?.review.moves[ex.moveIndex];
-  const evalBefore = stored?.review.evals[ex.moveIndex];
+  // A threat card starts after the player's move: the opponent's turn.
+  const evalBefore = stored?.review.evals[ex.kind === 'threat' ? ex.moveIndex + 1 : ex.moveIndex];
   const cur = useStore.getState().training;
   if (!cur || cur.index !== index) return;
   if (!game || !move || !evalBefore) {

@@ -26,7 +26,8 @@ test('games analysed by the command line import into the app', async ({ page }, 
   await page.getByLabel('Lichess username').fill('learner');
   page.once('dialog', (d) => void d.accept());
   await page.locator('input[type=file][accept*="json"]').setInputFiles(out);
-  await expect(page.locator('.nav .count')).toHaveText('2');
+  // Two mistakes of "learner", plus a blunder check for 5...Bxd1 (it allowed mate).
+  await expect(page.locator('.nav .count')).toHaveText('3');
   await page.locator('.nav').getByRole('button', { name: 'Games' }).click();
   await expect(page.locator('.library-item')).toContainText('Legall');
   await page.locator('.nav').getByRole('button', { name: 'Progress' }).click();

@@ -10,6 +10,8 @@ interface Props {
   onSelect: (cursor: number) => void;
 }
 
+const formatSeconds = (ms: number) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.floor(ms / 60_000)}m${String(Math.round((ms % 60_000) / 1000)).padStart(2, '0')}`);
+
 export function MoveList({ game, moves, cursor, onSelect }: Props) {
   const active = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -46,6 +48,11 @@ export function MoveList({ game, moves, cursor, onSelect }: Props) {
                 aria-current={isActive ? 'step' : undefined}
               >
                 <span className="movelist-san">{m.san}</span>
+                {r?.timeSpentMs !== undefined && (
+                  <span className={`movelist-time${r.fast ? ' is-fast' : ''}`} title={r.fast ? 'Played much faster than your usual pace' : 'Time spent'}>
+                    {formatSeconds(r.timeSpentMs)}
+                  </span>
+                )}
                 {r ? <ClassBadge c={r.assessment.classification} /> : null}
               </button>
             );
