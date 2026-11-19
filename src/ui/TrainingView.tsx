@@ -11,7 +11,7 @@ const GRADE_TEXT = { easy: 'Easy', good: 'Good', hard: 'Hard', again: 'To review
 /** Daily review of the player's own mistakes (spaced repetition). */
 export function TrainingView() {
   const { training, dueCount } = useStore();
-  const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView, openWoodpecker } = useStore.getState();
+  const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView, openWoodpecker, openEndgames } = useStore.getState();
   const ex = training?.queue[training.index];
   const move = training?.move;
   const isThreat = ex?.kind === 'threat';
@@ -51,6 +51,9 @@ export function TrainingView() {
         <h2>Woodpecker</h2>
         <p>Solve the same set of your positions in cycles, each one faster than the last, until the patterns are automatic.</p>
         <button onClick={() => void openWoodpecker()}>Open Woodpecker</button>
+        <h2>Endgames</h2>
+        <p>Play again the endgames you were winning and did not win, or the draws you lost, against Stockfish.</p>
+        <button onClick={() => void openEndgames()}>Open endgames</button>
       </div>
     );
   }

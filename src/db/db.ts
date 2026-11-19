@@ -7,6 +7,7 @@ import type { Level } from '../core/coach/sheet';
 import type { CoachText } from '../core/coach/verify';
 import type { Exercise } from '../core/training';
 import type { WoodpeckerSet } from '../core/woodpecker';
+import type { EndgameDrill } from '../core/endgame';
 
 export interface StoredEval {
   /** `${epd}|${engineId}|${multiPv}` */
@@ -71,6 +72,7 @@ class CoachDb extends Dexie {
   explanations!: EntityTable<StoredExplanation, 'key'>;
   exercises!: EntityTable<Exercise, 'id'>;
   woodpecker!: EntityTable<WoodpeckerSet, 'id'>;
+  endgames!: EntityTable<EndgameDrill, 'id'>;
 
   constructor() {
     super('chess-coach');
@@ -83,6 +85,7 @@ class CoachDb extends Dexie {
     this.version(2).stores({ explanations: 'key, createdAt' });
     this.version(3).stores({ exercises: 'id, due, gameId' });
     this.version(4).stores({ woodpecker: 'id, createdAt' });
+    this.version(5).stores({ endgames: 'id, gameId' });
   }
 }
 
@@ -136,6 +139,7 @@ export async function exportAll(): Promise<string> {
     reviews: await db.reviews.toArray(),
     exercises: await db.exercises.toArray(),
     woodpecker: await db.woodpecker.toArray(),
+    endgames: await db.endgames.toArray(),
   };
   return JSON.stringify(data);
 }
@@ -148,13 +152,15 @@ export async function importAll(json: string): Promise<number> {
     reviews?: StoredReview[];
     exercises?: Exercise[];
     woodpecker?: WoodpeckerSet[];
+    endgames?: EndgameDrill[];
   };
   if (data.format !== 'chess-coach-backup') throw new Error('This file is not a Chess Coach backup.');
-  await db.transaction('rw', [db.games, db.reviews, db.exercises, db.woodpecker], async () => {
+  await db.transaction('rw', [db.games, db.reviews, db.exercises, db.woodpecker, db.endgames], async () => {
     if (data.games) await db.games.bulkPut(data.games);
     if (data.reviews) await db.reviews.bulkPut(data.reviews);
     if (data.exercises) await db.exercises.bulkPut(data.exercises);
     if (data.woodpecker) await db.woodpecker.bulkPut(data.woodpecker);
+    if (data.endgames) await db.endgames.bulkPut(data.endgames);
   });
   return data.games?.length ?? 0;
 }

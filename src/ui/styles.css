@@ -1179,3 +1179,42 @@ cg-board {
   color: var(--text);
   letter-spacing: 0;
 }
+
+/* Endgame drills */
+.drill-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 16px;
+  display: grid;
+  gap: 8px;
+}
+.drill {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    'goal material result'
+    'meta meta meta';
+  gap: 2px 12px;
+  text-align: left;
+  padding: 10px 12px;
+}
+.drill-goal {
+  grid-area: goal;
+  font-weight: 600;
+}
+.drill-material {
+  grid-area: material;
+  font-variant-numeric: tabular-nums;
+}
+.drill .muted {
+  grid-area: meta;
+}
+.drill-result {
+  grid-area: result;
+}
+.endgame-moves {
+  font-variant-numeric: tabular-nums;
+  max-height: 160px;
+  overflow-y: auto;
+}

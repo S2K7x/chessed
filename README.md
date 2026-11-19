@@ -34,6 +34,9 @@ mistakes, and practise the positions where you went wrong.
 - **Woodpecker method.** Build a set from your training positions and solve it
   again in cycles (up to seven), aiming at about half the time each cycle, with
   one try per position.
+- **Endgame drills.** Endgames you were winning and did not win, and drawn
+  endgames you lost, come back to be played out against Stockfish: convert the
+  win or hold the draw.
 - **Time use.** Time spent on each move, and errors played much faster than
   your own pace.
 - **Annotated PGN export** for Lichess studies or ChessBase.

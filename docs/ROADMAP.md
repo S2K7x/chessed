@@ -58,6 +58,16 @@ Done:
   sessions. The next cycle's target is half the last one's time; reported
   schedules roughly halve each cycle (for example 14 days, then 7). Kept apart
   from the spaced-repetition schedule: Woodpecker answers do not change it.
+- **Endgame drills.** From each game: the last endgame position you were
+  winning (75% or more) before the move that dropped it under 60%, in a game you
+  did not win; and the last balanced one (35 to 65%) before the move that lost
+  it, in a game you lost. You play it out against Stockfish (a little below the
+  review depth). A win is converted at checkmate, when the engine announces a
+  forced mate, or with a queen or rook against a bare king (a known mate, which
+  the engine does not always announce at that depth). A draw is held by a draw
+  under the rules or after 25 moves. A move that drops your chances under the
+  same thresholds ends the try, with the engine's answer and the better move.
+  Not done yet: a "practise this endgame" link from the review.
 - **Annotated PGN export**: classes as NAGs, the evaluation as `[%eval]`, the
   coach's summary as comments and the better line as a variation. Imports into
   Lichess studies and ChessBase.
