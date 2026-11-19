@@ -70,10 +70,10 @@ function GameList({ state }: { state: GuessState }) {
                 .join(' · ')}
             </span>
             <span className="guess-sides">
-              <button className={g.result === '1-0' ? 'primary' : ''} onClick={() => void startGuess({ id: g.id }, 'white')} aria-label={`Play ${g.white} (White) against ${g.black}`}>
+              <button className={g.result === '1-0' ? 'primary' : ''} onClick={() => void startGuess({ id: g.id }, 'white')} aria-label={`White: play ${g.white} against ${g.black}`}>
                 White
               </button>
-              <button className={g.result === '0-1' ? 'primary' : ''} onClick={() => void startGuess({ id: g.id }, 'black')} aria-label={`Play ${g.black} (Black) against ${g.white}`}>
+              <button className={g.result === '0-1' ? 'primary' : ''} onClick={() => void startGuess({ id: g.id }, 'black')} aria-label={`Black: play ${g.black} against ${g.white}`}>
                 Black
               </button>
             </span>

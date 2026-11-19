@@ -43,3 +43,23 @@ describe('PGN parsing', () => {
     expect(parseGame(LEGALL_PGN).id).toBe(parseGame(LEGALL_PGN).id);
   });
 });
+
+describe('typed moves', () => {
+  const start = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+  it('reads SAN, UCI and common typing variants', async () => {
+    const { typedMove } = await import('./chess');
+    expect(typedMove(start, 'Nf3')).toBe('g1f3');
+    expect(typedMove(start, 'nf3')).toBe('g1f3');
+    expect(typedMove(start, 'e4')).toBe('e2e4');
+    expect(typedMove(start, 'E2E4')).toBe('e2e4');
+    expect(typedMove(start, ' d4+ ')).toBe('d2d4');
+    expect(typedMove(start, 'Nf6')).toBeUndefined();
+    expect(typedMove(start, 'hello')).toBeUndefined();
+    const castle = 'r3k2r/pppppppp/8/8/8/8/PPPPPPPP/R3K2R w KQkq - 0 1';
+    expect(typedMove(castle, 'O-O')).toBeDefined();
+    expect(typedMove(castle, '0-0-0')).toBe(typedMove(castle, 'O-O-O'));
+    // "b" stays a pawn capture, not a bishop.
+    const pawn = 'rnbqkbnr/pppppppp/8/8/2p5/1P6/P1PPPPPP/RNBQKBNR w KQkq - 0 1';
+    expect(typedMove(pawn, 'bxc4')).toBe('b3c4');
+  });
+});

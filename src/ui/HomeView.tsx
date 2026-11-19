@@ -2,8 +2,10 @@ import { useRef, useState } from 'react';
 import { useStore } from '../app/store';
 
 export function HomeView() {
-  const { library, busy, settings, recent } = useStore();
-  const { importInput, importFile, openGame, deleteGame, setView, loadRecent } = useStore.getState();
+  const { library, busy, settings, recent, batch } = useStore();
+  const { importInput, importFile, openGame, deleteGame, setView, loadRecent, analyseRecent, stopBatch } = useStore.getState();
+  const analysedRecent = new Set(recent?.analysed ?? []);
+  const toAnalyse = recent ? recent.games.filter((g) => !analysedRecent.has(g.id)).length : 0;
   const [text, setText] = useState('');
   const [filter, setFilter] = useState({ query: '', speed: '', result: '' });
   const shown = library.filter((g) => {
@@ -76,12 +78,38 @@ export function HomeView() {
         {recent?.loading && <p className="muted">Loading…</p>}
         {recent && !recent.loading && recent.games.length === 0 && <p className="muted">No recent games found.</p>}
         {recent && recent.games.length > 0 && (
+          <div className="batch" aria-live="polite">
+            {batch ? (
+              <>
+                <p className="batch-status">
+                  Analysing game {Math.min(batch.done + 1, batch.total)} of {batch.total}
+                  {batch.current ? <span className="muted"> · {batch.current}</span> : null}
+                </p>
+                <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={batch.total} aria-valuenow={batch.done}>
+                  <div className="progress-fill" style={{ width: `${(100 * batch.done) / batch.total}%` }} />
+                </div>
+                <button onClick={stopBatch}>Stop</button>
+              </>
+            ) : toAnalyse > 0 ? (
+              <>
+                <p className="muted small">The dashboard and your training get better with each analysed game. You can keep reviewing meanwhile.</p>
+                <button className="primary" onClick={() => void analyseRecent()}>
+                  Analyse all {toAnalyse} new game{toAnalyse > 1 ? 's' : ''}
+                </button>
+              </>
+            ) : (
+              <p className="muted small">All these games are analysed.</p>
+            )}
+          </div>
+        )}
+        {recent && recent.games.length > 0 && (
           <ul className="library-list">
             {recent.games.map((g) => (
               <li key={g.id} className="library-item">
                 <button className="library-open" onClick={() => void openGame(g)}>
                   <span className="library-players">
                     {g.white.name} <span className="muted">vs</span> {g.black.name}
+                    {analysedRecent.has(g.id) && <span className="tag">analysed</span>}
                   </span>
                   <span className="muted">{[g.result, g.timeControl?.speed, g.date, g.openingName].filter(Boolean).join(' · ')}</span>
                 </button>

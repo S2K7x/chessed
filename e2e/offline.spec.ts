@@ -27,7 +27,7 @@ test('the app installs and reviews a game offline', async ({ page, context }, in
   // Screens loaded on demand were prefetched while idle: they open offline too.
   await page.locator('.nav').getByRole('button', { name: 'Training' }).click();
   await page.getByRole('button', { name: 'Guess the move' }).click();
-  await page.locator('.guess-list li').first().getByRole('button', { name: /\(White\)/ }).click();
+  await page.locator('.guess-list li').first().getByRole('button', { name: /^White:/ }).click();
   await expect(page.getByRole('heading', { name: /^What did .+ play\?$/ })).toBeVisible();
   await page.locator('.nav').getByRole('button', { name: 'Progress' }).click();
   await expect(page.getByText(/Your progress|Add your Lichess/).first()).toBeVisible();

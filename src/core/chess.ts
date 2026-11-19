@@ -135,3 +135,19 @@ export function sanToUci(fen: string, san: string): string | undefined {
   const move = parseSan(pos, san);
   return move ? makeUci(move) : undefined;
 }
+
+/** The move typed in SAN (Nf3, exd5, O-O) or UCI (g1f3), or undefined when it is not legal here. */
+export function typedMove(fen: string, text: string): string | undefined {
+  const t = text.trim().replace(/[+#!?]+$/, '').replace(/0/g, 'O');
+  if (!t) return undefined;
+  const pos = positionFromFen(fen);
+  if (/^[a-h][1-8][a-h][1-8][qrbn]?$/i.test(t)) {
+    const m = legalUci(pos, t.toLowerCase());
+    return m ? makeUci(m) : undefined;
+  }
+  // Piece letters typed in lower case (nf3), except b, which can be a pawn (bxc3).
+  const san = /^[nrqk][a-h1-8x]/.test(t) ? t[0]!.toUpperCase() + t.slice(1) : t;
+  const m = parseSan(pos, san) ?? parseSan(pos, t);
+  return m ? makeUci(m) : undefined;
+}
+

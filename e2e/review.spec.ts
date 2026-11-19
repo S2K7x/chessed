@@ -57,9 +57,11 @@ test('imports a PGN, reviews it and practises the blunder', async ({ page }, inf
 
   await page.getByRole('button', { name: 'Retry this move' }).click();
   await expect(page.getByText('Find a better move')).toBeVisible();
-  await clickSquare(page, 'd6', 'black');
-  await clickSquare(page, 'e5', 'black');
+  // Typed on the keyboard: "x" must not trigger the threat shortcut while typing.
+  await page.getByLabel('Type a move').fill('dxe5');
+  await page.getByLabel('Type a move').press('Enter');
   await expect(page.locator('.verdict-good')).toContainText('dxe5 works', { timeout: 30_000 });
+  await expect(page.locator('.threat-line')).toHaveCount(0);
   await page.screenshot({ path: `test-results/retry-${info.project.name}.png`, fullPage: true });
 
   // The game is kept in the library.

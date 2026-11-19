@@ -134,16 +134,16 @@ export function ReviewView() {
           <Icon name="settings" />
           Settings
         </button>
-        <button className="tool" onClick={flip} aria-label="Flip board">
+        <button className="tool" onClick={flip} title="Flip board (f)">
           <Icon name="flip" />
           <span>
-            Flip board<kbd>F</kbd>
+            Flip board<kbd aria-hidden="true">F</kbd>
           </span>
         </button>
         <button className="tool" onClick={toggleThreats} aria-pressed={showThreats} title="What does the opponent threaten? (x)">
           <Icon name="threat" />
           <span>
-            Threat<kbd>X</kbd>
+            Threat<kbd aria-hidden="true">X</kbd>
           </span>
         </button>
         {review && (

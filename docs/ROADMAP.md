@@ -130,3 +130,20 @@ Measured and left as is:
   IndexedDB reads 201 reviews in about 50 ms.
 - **Engine settings** already follow the Stockfish FAQ: threads = cores − 1, a
   64 MB hash, no hash clearing between positions.
+
+## Usability
+
+- **Batch analysis in the app**: "Analyse all N new games" in Your latest
+  games runs both passes on each game not analysed yet, with its own engine,
+  so reviewing a game meanwhile is not blocked; it can be stopped. Games
+  already analysed are marked.
+- **Practise this endgame** from the review: the move where an endgame slipped
+  offers its drill directly.
+- **Typed moves** on every interactive board (retry, training, Woodpecker,
+  endgames, guess the move): SAN or UCI, lower-case piece letters accepted
+  (except b, kept for pawn captures), 0-0 for O-O. Typing does not trigger the
+  review's keyboard shortcuts.
+- **Accessibility audit** with axe-core (WCAG 2.0/2.1 A and AA) on settings,
+  games, review, training, guess the move and progress, in both themes. It
+  found and fixed: two buttons whose accessible name did not match the visible
+  label (WCAG 2.5.3) and grey tags under 4.5:1 contrast in the light theme.

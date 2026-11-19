@@ -5,7 +5,7 @@ import type { Color, PositionEval } from '../core/eval';
 import type { PlayableLine } from '../core/explain';
 import type { Game } from '../core/game';
 import { importGame, ImportError } from '../core/import/fetchers';
-import { loadOpeningBook } from '../core/openings';
+import { loadOpeningBook, type OpeningBook } from '../core/openings';
 import { PgnError, parseGames } from '../core/pgn';
 import { judgeAttempt, type AttemptVerdict } from '../core/retry';
 import {
@@ -14,6 +14,7 @@ import {
   refineEvaluations,
   refineTargets,
   type AnalysisSettings,
+  type EvalCache,
   type GameReview,
 } from '../core/review';
 import { lichessRemote } from '../core/remote';
@@ -96,7 +97,9 @@ interface State {
   liveWins: (number | undefined)[];
   progress?: { done: number; total: number; phase: 'evaluating' | 'refining' };
   /** Recent games fetched from a platform (not stored until opened). */
-  recent?: { platform: 'lichess' | 'chesscom'; games: Game[]; loading: boolean };
+  recent?: { platform: 'lichess' | 'chesscom'; games: Game[]; loading: boolean; /** Ids of those already analysed. */ analysed?: string[] };
+  /** Several games analysed in the background, one after the other. */
+  batch?: { total: number; done: number; failed: number; current?: string };
   error?: string;
   busy: boolean;
   /** Position shown: 0 = start, i = after move i. */
@@ -240,6 +243,8 @@ interface Actions {
   woodpeckerNext(): Promise<void>;
   pauseWoodpecker(): void;
   openEndgames(): Promise<void>;
+  /** Opens an endgame drill of the game under review. */
+  practiseEndgame(id: string): Promise<void>;
   startEndgameDrill(id: string): Promise<void>;
   endgameMove(uci: string): Promise<void>;
   endgameHint(): void;
@@ -252,6 +257,9 @@ interface Actions {
   guessNext(): Promise<void>;
   leaveGuess(): void;
   reanalyseOutdated(): Promise<void>;
+  /** Analyses, in the background, the recent games that are not analysed yet. */
+  analyseRecent(): Promise<void>;
+  stopBatch(): void;
   exportBackup(): Promise<void>;
   importBackup(file: File): Promise<void>;
   loadExplorer(fen: string, source: 'masters' | 'lichess'): Promise<void>;
@@ -328,6 +336,32 @@ const errorText = (err: unknown): string =>
       : err instanceof Error
         ? err.message
         : String(err);
+
+let batchAbort: AbortController | undefined;
+let batchEngine: UciEngine | undefined;
+
+/** A complete analysis away from the review screen (both passes), saved with its training cards. */
+async function analyseAndStore(
+  game: Game,
+  engine: UciEngine,
+  analysisSettings: AnalysisSettings,
+  settings: Settings,
+  book: OpeningBook,
+  cache: EvalCache,
+  signal?: AbortSignal,
+): Promise<GameReview> {
+  const opts = { cache, ...(signal ? { signal } : {}) };
+  const evals = await evaluatePositions(game, engine, analysisSettings, {
+    ...opts,
+    ...(settings.useLichess ? { remote: lichessRemote(browserFetch) } : {}),
+  });
+  const first = buildReview(game, evals, book, analysisSettings, ENGINE_ID);
+  const refined = await refineEvaluations(evals, refineTargets(first), engine, analysisSettings, opts);
+  const review = buildReview(game, refined, book, analysisSettings, ENGINE_ID);
+  await db.reviews.put({ gameId: game.id, review });
+  await addExercises(game, review, settings);
+  return review;
+}
 
 async function refreshLibrary(): Promise<Game[]> {
   return db.games.orderBy('importedAt').reverse().limit(200).toArray();
@@ -500,7 +534,8 @@ export const useStore = create<State & Actions>((set, get) => ({
     try {
       const ctx = { fetch: browserFetch };
       const games = platform === 'lichess' ? await lichessUserGames(username.trim(), 20, ctx) : await chesscomUserGames(username.trim(), 20, ctx);
-      set({ recent: { platform, games, loading: false } });
+      const analysed = new Set((await db.reviews.toCollection().primaryKeys()) as string[]);
+      set({ recent: { platform, games, loading: false, analysed: games.filter((g) => analysed.has(g.id)).map((g) => g.id) } });
     } catch (err) {
       set({ recent: undefined, error: errorText(err) });
     }
@@ -829,6 +864,11 @@ export const useStore = create<State & Actions>((set, get) => ({
     set({ view: 'endgames', endgames: { drills, games: info, hints: 0 } });
   },
 
+  async practiseEndgame(id) {
+    await get().openEndgames();
+    await get().startEndgameDrill(id);
+  },
+
   async startEndgameDrill(id) {
     const e = get().endgames;
     const drill = e?.drills.find((d) => d.id === id);
@@ -975,13 +1015,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     try {
       for (const [i, stored] of todo.entries()) {
         const game = games.get(stored.gameId)!;
-        const analysisSettings = stored.review.settings;
-        const evals = await evaluatePositions(game, engine, analysisSettings, { cache });
-        const first = buildReview(game, evals, book, analysisSettings, ENGINE_ID);
-        const refined = await refineEvaluations(evals, refineTargets(first), engine, analysisSettings, { cache });
-        const review = buildReview(game, refined, book, analysisSettings, ENGINE_ID);
-        await db.reviews.put({ gameId: game.id, review });
-        await addExercises(game, review, settings);
+        await analyseAndStore(game, engine, stored.review.settings, settings, book, cache);
         set({ reanalysis: { done: i + 1, total: todo.length } });
       }
     } catch (err) {
@@ -991,6 +1025,52 @@ export const useStore = create<State & Actions>((set, get) => ({
       set({ reanalysis: undefined });
       if (get().view === 'progress') void get().loadProfile();
     }
+  },
+
+  async analyseRecent() {
+    const recent = get().recent;
+    if (!recent || recent.loading || get().batch) return;
+    const settings = get().settings;
+    const analysed = new Set((await db.reviews.toCollection().primaryKeys()) as string[]);
+    const todo = recent.games.filter((g) => !analysed.has(g.id));
+    if (todo.length === 0) return;
+    const abort = new AbortController();
+    batchAbort = abort;
+    set({ batch: { total: todo.length, done: 0, failed: 0 } });
+    const book = await loadOpeningBook();
+    const cache = evalCache(ENGINE_ID);
+    // A separate engine, so that reviewing a game meanwhile is not blocked.
+    const engine = createBrowserEngine();
+    batchEngine = engine;
+    let failed = 0;
+    try {
+      for (const [i, game] of todo.entries()) {
+        if (abort.signal.aborted) break;
+        set({ batch: { total: todo.length, done: i, failed, current: `${game.white.name} – ${game.black.name}` } });
+        try {
+          await db.games.put(game);
+          await analyseAndStore(game, engine, analysisSettingsOf(settings), settings, book, cache, abort.signal);
+          const r = get().recent;
+          if (r) set({ recent: { ...r, analysed: [...(r.analysed ?? []), game.id] } });
+        } catch (err) {
+          if (abort.signal.aborted) break;
+          failed++;
+        }
+        set({ library: await refreshLibrary() });
+      }
+    } finally {
+      engine.dispose();
+      batchEngine = undefined;
+      batchAbort = undefined;
+      set({ batch: undefined, library: await refreshLibrary() });
+      if (failed) set({ error: `${failed} game${failed > 1 ? 's' : ''} could not be analysed.` });
+      void get().refreshDueCount();
+    }
+  },
+
+  stopBatch() {
+    batchAbort?.abort();
+    batchEngine?.cancelAll();
   },
 
   async exportBackup() {

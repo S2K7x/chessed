@@ -20,6 +20,7 @@ Chess Coach is licensed under the GNU General Public License v3.0 or later
 | [Jost](https://github.com/indestructible-type/Jost) (via `@fontsource-variable/jost`) | OFL-1.1 | Interface typeface, bundled |
 | [Instrument Serif](https://github.com/Instrument/instrument-serif) (via `@fontsource/instrument-serif`) | OFL-1.1 | Display typeface, bundled |
 | [Lichess masters database](https://lichess.org/api#tag/Opening-Explorer) | Game scores (facts) | 24 decisive master games in `src/data/masterGames.json` for "Guess the move", fetched by `scripts/fetch-master-games.mjs` |
+| [axe-core](https://github.com/dequelabs/axe-core) | MPL-2.0 | Accessibility audit in the end-to-end tests only (development dependency, not shipped) |
 | [chess-tcn](https://www.npmjs.com/package/chess-tcn) | MIT | Algorithm reference for the TCN decoder (re-implemented, not bundled) |
 
 Algorithms re-implemented from Lichess ([lila](https://github.com/lichess-org/lila),

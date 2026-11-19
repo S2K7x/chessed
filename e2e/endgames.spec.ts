@@ -32,6 +32,13 @@ test('endgame drills: an endgame you let slip, played again against Stockfish', 
   await expect(page.getByText('Game summary')).toBeVisible({ timeout: 90_000 });
   await expect(page.locator('.refining')).toHaveCount(0, { timeout: 90_000 });
 
+  // From the review: the move where the win slipped offers the drill.
+  await page.locator('.movelist-cell', { hasText: 'Qb1' }).click();
+  await page.getByRole('button', { name: 'Practise converting this endgame' }).click();
+  await expect(page.getByRole('heading', { name: 'Win this endgame' })).toBeVisible();
+  await expect(page.getByText('Your move.')).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Stop' }).click();
+
   await page.locator('.nav').getByRole('button', { name: 'Training' }).click();
   await page.getByRole('button', { name: 'Open endgames' }).click();
   const drill = page.locator('.drill').first();

@@ -39,6 +39,12 @@ mistakes, and practise the positions where you went wrong.
   win or hold the draw.
 - **Guess the move.** Follow a master game from one side and guess each move;
   the master's move scores 3, an engine-approved alternative 2 or 1.
+- **Analyse your latest games in one go.** Your last 20 Lichess or Chess.com
+  games are analysed one after the other in the background while you keep
+  reviewing.
+- **Keyboard and accessibility.** Moves can be typed (Nf3, e2e4) on any board
+  that expects one; the main screens are checked with axe-core (WCAG 2.1 AA)
+  in both themes.
 - **Time use.** Time spent on each move, and errors played much faster than
   your own pace.
 - **Annotated PGN export** for Lichess studies or ChessBase.

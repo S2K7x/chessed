@@ -52,12 +52,16 @@ test('guess the move through a master game', async ({ page }, info) => {
   await page.getByRole('button', { name: 'Guess the move' }).click();
   await expect(page.getByRole('heading', { name: 'Guess the move' })).toBeVisible();
   await expect(page.locator('.guess-list li')).toHaveCount(games.length);
-  await page.locator('.guess-list li').first().getByRole('button', { name: first.side === 'white' ? /\(White\)/ : /\(Black\)/ }).click();
+  await page.locator('.guess-list li').first().getByRole('button', { name: first.side === 'white' ? /^White:/ : /^Black:/ }).click();
 
   // The master's move scores 3.
   await expect(page.getByRole('heading', { name: /^What did .+ play\?$/ })).toBeVisible();
-  await clickSquare(page, first.from);
-  await clickSquare(page, first.to);
+  // An illegal entry is refused; the move typed in UCI is accepted.
+  await page.getByLabel('Type a move').fill('Ke9');
+  await page.getByLabel('Type a move').press('Enter');
+  await expect(page.getByRole('alert')).toHaveText('Not a legal move here.');
+  await page.getByLabel('Type a move').fill(first.from + first.to);
+  await page.getByLabel('Type a move').press('Enter');
   await expect(page.locator('.guess-verdict')).toHaveText("The master's move. +3");
   await expect(page.getByLabel('Score')).toContainText('3');
   await page.screenshot({ path: `test-results/guess-${info.project.name}.png`, fullPage: true });

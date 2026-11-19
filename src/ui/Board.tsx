@@ -1,10 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Chessground } from '@lichess-org/chessground';
 import type { Api } from '@lichess-org/chessground/api';
 import type { DrawShape } from '@lichess-org/chessground/draw';
 import type { Key } from '@lichess-org/chessground/types';
 import { chessgroundDests } from 'chessops/compat';
-import { positionFromFen } from '../core/chess';
+import { positionFromFen, typedMove } from '../core/chess';
 import type { Color } from '../core/eval';
 import type { Arrow } from '../core/explain';
 
@@ -85,5 +85,49 @@ export function Board({ fen, orientation, lastMove, arrows = [], onMove }: Board
   }, [fen, orientation, lastMove, arrows, onMove]);
 
   // The position and orientation are exposed for end-to-end tests.
-  return <div className="board" ref={el} data-fen={fen} data-orientation={orientation} />;
+  return (
+    <div className="board-wrap">
+      <div className="board" ref={el} data-fen={fen} data-orientation={orientation} />
+      {onMove && <MoveInput fen={fen} onMove={onMove} />}
+    </div>
+  );
+}
+
+/** Keyboard move entry, for players who prefer typing, or cannot drag pieces. */
+function MoveInput({ fen, onMove }: { fen: string; onMove: (uci: string) => void }) {
+  const [text, setText] = useState('');
+  const [invalid, setInvalid] = useState(false);
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    const uci = typedMove(fen, text);
+    if (!uci) {
+      setInvalid(true);
+      return;
+    }
+    setText('');
+    setInvalid(false);
+    onMove(uci);
+  };
+  return (
+    <form className="move-input" onSubmit={submit}>
+      <input
+        aria-label="Type a move"
+        placeholder="Type a move (Nf3, e2e4)…"
+        value={text}
+        aria-invalid={invalid}
+        onChange={(e) => {
+          setText(e.target.value);
+          setInvalid(false);
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+        autoComplete="off"
+        spellCheck={false}
+      />
+      {invalid && (
+        <span className="move-input-error" role="alert">
+          Not a legal move here.
+        </span>
+      )}
+    </form>
+  );
 }

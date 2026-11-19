@@ -1,3 +1,4 @@
+import { endgameDrills } from '../core/endgame';
 import { ERROR_CLASSES } from '../core/classify';
 import { formatLine } from '../core/explain';
 import { classificationCounts, formatClock, type GameReview, type MoveReview } from '../core/review';
@@ -26,7 +27,7 @@ function keyMoments(review: GameReview, myColor: Color | undefined): MoveReview[
 
 export function CoachPanel({ game, review }: { game: Game; review?: GameReview }) {
   const { cursor, progress, myColor, lineView, retry, playout, hintsShown, settings } = useStore();
-  const { goTo, showLine, stepLine, closeLine, startRetry, endRetry, toggleAutoplay, openGame, showHint, startPlayout } = useStore.getState();
+  const { goTo, showLine, stepLine, closeLine, startRetry, endRetry, toggleAutoplay, openGame, showHint, startPlayout, practiseEndgame } = useStore.getState();
   // No hooks below this point: the early returns must not change the hook order.
   if (playout) return <PlayoutPanel />;
 
@@ -198,6 +199,7 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
   const ex = m.explanation;
   const important = ERROR_CLASSES.has(m.assessment.classification) || m.assessment.classification === 'great' || m.assessment.classification === 'brilliant';
   const llm = important && coachAvailable(settings);
+  const drillHere = review && myColor ? endgameDrills(game, review, myColor).find((d) => d.moveIndex === cursor - 1) : undefined;
   const beginner = coachLevel(settings, game, myColor) === 'beginner';
   return (
     <section className="coach" aria-live="polite">
@@ -237,6 +239,11 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
       <div className="coach-actions">
         {canRetry(m, myColor) && (
           <button className="primary" onClick={() => startRetry(cursor - 1)}>Retry this move</button>
+        )}
+        {drillHere && (
+          <button onClick={() => void practiseEndgame(drillHere.id)}>
+            {drillHere.goal === 'win' ? 'Practise converting this endgame' : 'Practise holding this endgame'}
+          </button>
         )}
         {ex.lines.map((l, i) => (
           <button key={i} onClick={() => showLine(l)}>{l.label}</button>
