@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import '@lichess-org/chessground/assets/chessground.base.css';
 import '@lichess-org/chessground/assets/chessground.brown.css';
 import '@lichess-org/chessground/assets/chessground.cburnett.css';
+import '@fontsource-variable/jost/index.css';
+import '@fontsource/instrument-serif/latin-400.css';
+import '@fontsource/instrument-serif/latin-400-italic.css';
 import './ui/styles.css';
 import { App } from './ui/App';
 

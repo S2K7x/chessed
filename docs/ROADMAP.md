@@ -68,6 +68,15 @@ Done:
   under the rules or after 25 moves. A move that drops your chances under the
   same thresholds ends the try, with the engine's answer and the better move.
   Not done yet: a "practise this endgame" link from the review.
+- **Guess the move**: 24 decisive master games bundled from the Lichess masters
+  database (two per common opening), or any pasted PGN. The opening (first
+  eight moves) is skipped. Scoring follows chessgames.com and ChessBase's replay
+  training: 3 points for the master's move, 2 when the engine finds another move
+  as good, 1 when it is close; no retry, the game's move is then played. The
+  best score per game and side is kept.
+- **Redesign**: dark charcoal and paper themes, greige board with coordinates
+  outside, big light numerals, Jost and Instrument Serif, figurine move list in
+  a ruled grid, a tools rail in the review and a four-mode training hub.
 - **Annotated PGN export**: classes as NAGs, the evaluation as `[%eval]`, the
   coach's summary as comments and the better line as a variation. Imports into
   Lichess studies and ChessBase.

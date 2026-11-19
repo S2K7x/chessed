@@ -8,6 +8,10 @@ import { EvalGraph } from './EvalGraph';
 import { MoveList } from './MoveList';
 import { hintsFor } from '../core/hints';
 import { describeThreat } from '../core/threat';
+import { positionFromFen, terminalOf } from '../core/chess';
+import { formatClock } from '../core/review';
+import type { Game } from '../core/game';
+import { Icon } from './icons';
 
 export function ReviewView() {
   const { game, review, cursor, orientation, lineView, retry, liveWins, myColor, playout, hintsShown, showThreats, threats } = useStore();
@@ -112,6 +116,8 @@ export function ReviewView() {
 
   if (!game || !board) return null;
   const evaluation = board.evalIndex !== undefined ? review?.evals[board.evalIndex] : undefined;
+  const { exportAnnotatedPgn, setView } = useStore.getState();
+  const atEnd = !retry && !playout && !lineView && cursor >= game.moves.length;
   const top = orientation === 'white' ? game.black : game.white;
   const bottom = orientation === 'white' ? game.white : game.black;
   const topColor = orientation === 'white' ? 'black' : 'white';
@@ -119,23 +125,48 @@ export function ReviewView() {
 
   return (
     <div className="review">
+      <nav className="review-tools" aria-label="Tools">
+        <button className="tool" onClick={() => setView('home')}>
+          <Icon name="plus" />
+          New game
+        </button>
+        <button className="tool" onClick={() => setView('settings')}>
+          <Icon name="settings" />
+          Settings
+        </button>
+        <button className="tool" onClick={flip} aria-label="Flip board">
+          <Icon name="flip" />
+          <span>
+            Flip board<kbd>F</kbd>
+          </span>
+        </button>
+        <button className="tool" onClick={toggleThreats} aria-pressed={showThreats} title="What does the opponent threaten? (x)">
+          <Icon name="threat" />
+          <span>
+            Threat<kbd>X</kbd>
+          </span>
+        </button>
+        {review && (
+          <button className="tool" onClick={exportAnnotatedPgn} aria-label="Share game (annotated PGN)">
+            <Icon name="share" />
+            Share game
+          </button>
+        )}
+      </nav>
       <div className="review-board" ref={boardArea}>
-        <PlayerStrip name={top.name} elo={top.elo} color={topColor} accuracy={review?.accuracy[topColor]} isMe={myColor === topColor} />
+        <PlayerStrip game={game} color={topColor} cursor={cursor} accuracy={review?.accuracy[topColor]} isMe={myColor === topColor} />
         <div className="board-row">
           <EvalBar evaluation={evaluation} orientation={orientation} />
           <Board fen={board.fen} orientation={orientation} lastMove={board.lastMove} arrows={threatArrows.length ? [...board.arrows.filter((a) => a.brush !== 'threat'), ...threatArrows] : board.arrows} onMove={'interactive' in board && board.interactive ? onMove : undefined} />
         </div>
-        <PlayerStrip name={bottom.name} elo={bottom.elo} color={bottomColor} accuracy={review?.accuracy[bottomColor]} isMe={myColor === bottomColor} />
+        <PlayerStrip game={game} color={bottomColor} cursor={cursor} accuracy={review?.accuracy[bottomColor]} isMe={myColor === bottomColor} />
         <div className="board-controls" role="toolbar" aria-label="Navigation">
-          <button onClick={() => goTo(0)} aria-label="First position">⏮</button>
-          <button onClick={() => step(-1)} aria-label="Previous move">◀</button>
-          <button onClick={() => step(1)} aria-label="Next move">▶</button>
-          <button onClick={() => goTo(Number.MAX_SAFE_INTEGER)} aria-label="Last position">⏭</button>
-          <button onClick={flip} aria-label="Flip board">⇅</button>
-          <button onClick={toggleThreats} aria-pressed={showThreats} title="What does the opponent threaten? (x)">
-            Threat
-          </button>
+          <button onClick={() => goTo(0)} aria-label="First position"><Icon name="first" /></button>
+          <button onClick={() => step(-1)} aria-label="Previous move"><Icon name="prev" /></button>
+          <button onClick={() => step(1)} aria-label="Next move"><Icon name="next" /></button>
+          <button onClick={() => goTo(Number.MAX_SAFE_INTEGER)} aria-label="Last position"><Icon name="last" /></button>
         </div>
+        {atEnd && <ResultBanner game={game} />}
         {threatFen && (
           <p className="threat-line" role="status">
             {!threat || threat === 'loading'
@@ -152,22 +183,65 @@ export function ReviewView() {
       <aside className="review-side">
         <GameHeader />
         <CoachPanel game={game} review={review} />
-        <MoveList game={game} moves={review?.moves} cursor={cursor} onSelect={goTo} />
+        <MoveList game={game} moves={review?.moves} cursor={cursor} onSelect={goTo} {...(review ? { onExport: exportAnnotatedPgn } : {})} />
       </aside>
     </div>
   );
 }
 
-function PlayerStrip({ name, elo, color, accuracy, isMe }: { name: string; elo?: number; color: 'white' | 'black'; accuracy?: number; isMe: boolean }) {
+/** The clock of `color` after the moves up to `cursor` (or the starting time), when the game has clocks. */
+function clockAt(game: Game, color: 'white' | 'black', cursor: number): number | undefined {
+  for (let i = Math.min(cursor, game.moves.length) - 1; i >= 0; i--) {
+    const m = game.moves[i]!;
+    if (m.color === color && m.clockMs !== undefined) return m.clockMs;
+  }
+  const initial = game.timeControl?.initialSeconds;
+  return initial && game.moves.some((m) => m.clockMs !== undefined) ? initial * 1000 : undefined;
+}
+
+function PlayerStrip({ game, color, cursor, accuracy, isMe }: { game: Game; color: 'white' | 'black'; cursor: number; accuracy?: number; isMe: boolean }) {
+  const p = color === 'white' ? game.white : game.black;
+  const clock = clockAt(game, color, cursor);
+  const meta = [p.elo ? String(p.elo) : undefined, isMe ? 'you' : undefined].filter(Boolean).join(' · ');
   return (
     <div className="player">
-      <span className={`player-dot is-${color}`} aria-hidden />
-      <span className="player-name">{name}</span>
-      {elo ? <span className="muted">({elo})</span> : null}
-      {isMe ? <span className="tag">you</span> : null}
-      {accuracy !== undefined ? <span className="player-acc">{accuracy.toFixed(1)}</span> : null}
+      <span className={`player-avatar is-${color}`} aria-hidden>
+        {p.name.trim().charAt(0).toUpperCase() || '?'}
+      </span>
+      <span className="player-big" aria-label={clock !== undefined ? 'Clock' : 'Accuracy'}>
+        {clock !== undefined ? formatClock(clock) : accuracy !== undefined ? accuracy.toFixed(1) : '–'}
+      </span>
+      <span className="player-info">
+        <span className="player-name">{p.name}</span>
+        <span className="player-meta">{meta || (color === 'white' ? 'White' : 'Black')}</span>
+      </span>
+      {clock !== undefined && accuracy !== undefined && (
+        <span className="player-acc">
+          <strong>{accuracy.toFixed(1)}</strong>
+          <small>accuracy</small>
+        </span>
+      )}
     </div>
   );
+}
+
+/** The game's end, in words: "Checkmate!", "Stalemate", or who won. */
+function ResultBanner({ game }: { game: Game }) {
+  const last = game.moves[game.moves.length - 1];
+  const terminal = last ? terminalOf(positionFromFen(last.fenAfter)) : undefined;
+  const text =
+    terminal === 'checkmate'
+      ? 'Checkmate!'
+      : terminal === 'stalemate'
+        ? 'Stalemate'
+        : game.result === '1-0'
+          ? 'White wins'
+          : game.result === '0-1'
+            ? 'Black wins'
+            : game.result === '1/2-1/2'
+              ? 'Draw'
+              : undefined;
+  return text ? <p className="result-banner display">{text}</p> : null;
 }
 
 function GameHeader() {

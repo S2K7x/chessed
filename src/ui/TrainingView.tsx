@@ -11,7 +11,7 @@ const GRADE_TEXT = { easy: 'Easy', good: 'Good', hard: 'Hard', again: 'To review
 /** Daily review of the player's own mistakes (spaced repetition). */
 export function TrainingView() {
   const { training, dueCount } = useStore();
-  const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView, openWoodpecker, openEndgames } = useStore.getState();
+  const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView, openWoodpecker, openEndgames, openGuess } = useStore.getState();
   const ex = training?.queue[training.index];
   const move = training?.move;
   const isThreat = ex?.kind === 'threat';
@@ -42,18 +42,37 @@ export function TrainingView() {
 
   if (!training) {
     return (
-      <div className="card narrow">
-        <h1>Training</h1>
-        <p>Your mistakes come back here as positions to solve, spaced out over days so that you remember the idea.</p>
-        <button className="primary" onClick={() => void startTraining()} disabled={dueCount === 0}>
-          {dueCount > 0 ? `Review ${Math.min(10, dueCount)} positions` : 'Nothing due today'}
-        </button>
-        <h2>Woodpecker</h2>
-        <p>Solve the same set of your positions in cycles, each one faster than the last, until the patterns are automatic.</p>
-        <button onClick={() => void openWoodpecker()}>Open Woodpecker</button>
-        <h2>Endgames</h2>
-        <p>Play again the endgames you were winning and did not win, or the draws you lost, against Stockfish.</p>
-        <button onClick={() => void openEndgames()}>Open endgames</button>
+      <div className="training-hub">
+        <header className="hub-header">
+          <h1>Training</h1>
+          <p className="muted">Four ways to turn your games into skill. Everything runs on your device.</p>
+        </header>
+        <section className="mode-card">
+          <p className="mode-kicker">Spaced review</p>
+          <h2>Your mistakes</h2>
+          <p>Your mistakes come back as positions to solve, spaced out over days so that you remember the idea.</p>
+          <button className="primary" onClick={() => void startTraining()} disabled={dueCount === 0}>
+            {dueCount > 0 ? `Review ${Math.min(10, dueCount)} positions` : 'Nothing due today'}
+          </button>
+        </section>
+        <section className="mode-card">
+          <p className="mode-kicker">Speed</p>
+          <h2>Woodpecker</h2>
+          <p>Solve the same set of your positions in cycles, each one faster than the last, until the patterns are automatic.</p>
+          <button onClick={() => void openWoodpecker()}>Open Woodpecker</button>
+        </section>
+        <section className="mode-card">
+          <p className="mode-kicker">Technique</p>
+          <h2>Endgames</h2>
+          <p>Play again the endgames you were winning and did not win, or the draws you lost, against Stockfish.</p>
+          <button onClick={() => void openEndgames()}>Open endgames</button>
+        </section>
+        <section className="mode-card">
+          <p className="mode-kicker">Understanding</p>
+          <h2>Guess the move</h2>
+          <p>Follow a master game from one side and guess each move. A different move still scores when the engine finds it as good.</p>
+          <button onClick={() => void openGuess()}>Guess the move</button>
+        </section>
       </div>
     );
   }

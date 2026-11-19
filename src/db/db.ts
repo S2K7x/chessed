@@ -9,6 +9,19 @@ import type { Exercise } from '../core/training';
 import type { WoodpeckerSet } from '../core/woodpecker';
 import type { EndgameDrill } from '../core/endgame';
 
+/** Best "Guess the move" result for a game and side. */
+export interface GuessRecord {
+  /** `${sourceId}:${side}` */
+  id: string;
+  sourceId: string;
+  side: 'white' | 'black';
+  points: number;
+  max: number;
+  percent: number;
+  at: number;
+  plays: number;
+}
+
 export interface StoredEval {
   /** `${epd}|${engineId}|${multiPv}` */
   key: string;
@@ -73,6 +86,7 @@ class CoachDb extends Dexie {
   exercises!: EntityTable<Exercise, 'id'>;
   woodpecker!: EntityTable<WoodpeckerSet, 'id'>;
   endgames!: EntityTable<EndgameDrill, 'id'>;
+  guesses!: EntityTable<GuessRecord, 'id'>;
 
   constructor() {
     super('chess-coach');
@@ -86,6 +100,7 @@ class CoachDb extends Dexie {
     this.version(3).stores({ exercises: 'id, due, gameId' });
     this.version(4).stores({ woodpecker: 'id, createdAt' });
     this.version(5).stores({ endgames: 'id, gameId' });
+    this.version(6).stores({ guesses: 'id' });
   }
 }
 
@@ -140,6 +155,7 @@ export async function exportAll(): Promise<string> {
     exercises: await db.exercises.toArray(),
     woodpecker: await db.woodpecker.toArray(),
     endgames: await db.endgames.toArray(),
+    guesses: await db.guesses.toArray(),
   };
   return JSON.stringify(data);
 }
@@ -153,14 +169,16 @@ export async function importAll(json: string): Promise<number> {
     exercises?: Exercise[];
     woodpecker?: WoodpeckerSet[];
     endgames?: EndgameDrill[];
+    guesses?: GuessRecord[];
   };
   if (data.format !== 'chess-coach-backup') throw new Error('This file is not a Chess Coach backup.');
-  await db.transaction('rw', [db.games, db.reviews, db.exercises, db.woodpecker, db.endgames], async () => {
+  await db.transaction('rw', [db.games, db.reviews, db.exercises, db.woodpecker, db.endgames, db.guesses], async () => {
     if (data.games) await db.games.bulkPut(data.games);
     if (data.reviews) await db.reviews.bulkPut(data.reviews);
     if (data.exercises) await db.exercises.bulkPut(data.exercises);
     if (data.woodpecker) await db.woodpecker.bulkPut(data.woodpecker);
     if (data.endgames) await db.endgames.bulkPut(data.endgames);
+    if (data.guesses) await db.guesses.bulkPut(data.guesses);
   });
   return data.games?.length ?? 0;
 }

@@ -2,17 +2,21 @@ import { useEffect, useRef } from 'react';
 import type { Game } from '../core/game';
 import type { MoveReview } from '../core/review';
 import { ClassBadge } from './ClassBadge';
+import { Icon } from './icons';
+import { San } from './San';
 
 interface Props {
   game: Game;
   moves?: MoveReview[];
   cursor: number;
   onSelect: (cursor: number) => void;
+  /** Shown after the last move with the result. */
+  onExport?: () => void;
 }
 
 const formatSeconds = (ms: number) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.floor(ms / 60_000)}m${String(Math.round((ms % 60_000) / 1000)).padStart(2, '0')}`);
 
-export function MoveList({ game, moves, cursor, onSelect }: Props) {
+export function MoveList({ game, moves, cursor, onSelect, onExport }: Props) {
   const active = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     active.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
@@ -33,7 +37,7 @@ export function MoveList({ game, moves, cursor, onSelect }: Props) {
     <ol className="movelist" aria-label="Moves">
       {rows.map((row) => (
         <li key={row.number} className="movelist-row">
-          <span className="movelist-num">{row.number}.</span>
+          <span className="movelist-num">{row.number}</span>
           {row.cells.map((i, col) => {
             if (i === undefined) return <span key={col} className="movelist-cell is-empty" />;
             const m = game.moves[i]!;
@@ -47,7 +51,9 @@ export function MoveList({ game, moves, cursor, onSelect }: Props) {
                 onClick={() => onSelect(i + 1)}
                 aria-current={isActive ? 'step' : undefined}
               >
-                <span className="movelist-san">{m.san}</span>
+                <span className="movelist-san">
+                  <San san={m.san} color={m.color} />
+                </span>
                 {r?.timeSpentMs !== undefined && (
                   <span className={`movelist-time${r.fast ? ' is-fast' : ''}`} title={r.fast ? 'Played much faster than your usual pace' : 'Time spent'}>
                     {formatSeconds(r.timeSpentMs)}
@@ -59,6 +65,16 @@ export function MoveList({ game, moves, cursor, onSelect }: Props) {
           })}
         </li>
       ))}
+      {game.result !== '*' && (
+        <li className="movelist-end">
+          <span>{game.result.replace('-', '–')}</span>
+          {onExport && (
+            <button onClick={onExport} title="Download the annotated PGN">
+              <Icon name="download" /> PGN
+            </button>
+          )}
+        </li>
+      )}
     </ol>
   );
 }

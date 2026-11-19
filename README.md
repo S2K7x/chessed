@@ -37,6 +37,8 @@ mistakes, and practise the positions where you went wrong.
 - **Endgame drills.** Endgames you were winning and did not win, and drawn
   endgames you lost, come back to be played out against Stockfish: convert the
   win or hold the draw.
+- **Guess the move.** Follow a master game from one side and guess each move;
+  the master's move scores 3, an engine-approved alternative 2 or 1.
 - **Time use.** Time spent on each move, and errors played much faster than
   your own pace.
 - **Annotated PGN export** for Lichess studies or ChessBase.
@@ -64,6 +66,14 @@ npm run dev
 Open http://localhost:5173, paste a game link or a PGN, and press **Analyse**.
 Add your Lichess and Chess.com usernames in **Settings** so the coach knows
 which side you played.
+
+## Design
+
+A warm charcoal (dark) or paper (light) theme around a greige board: big light
+numerals for clocks and scores, Jost for the interface, Instrument Serif for
+titles and results, figurine notation drawn with the board's own pieces, and a
+single yellow accent for the main action. Dark surfaces are never pure black;
+lighter surfaces sit higher. Both fonts are bundled, so the app stays offline.
 
 ## Scripts
 
