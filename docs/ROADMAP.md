@@ -229,3 +229,45 @@ to end; problems found and fixed:
   modes (Woodpecker, endgames, openings and opponent, guess the move) are
   Zustand slices in `src/app/slices/`, with shared helpers in
   `src/app/shared.ts`.
+
+## First run on your own computer (November 2026)
+
+A fresh clone was installed and started as a new user would, and the first
+screen was looked at with no data. Problems found and fixed:
+
+- **Dead end on the first screen.** "Your latest games" showed two disabled
+  buttons and sent the player to Settings to type a username, then back. The
+  usernames are now asked right there ("Show my games" saves them and lists
+  the last 20 games); with an account saved, only that platform's button is
+  shown, with a link to change accounts.
+- **Nothing to try without an account.** An empty library now explains the
+  three steps (analyse, understand, train) and offers an example game:
+  Morphy's Opera Game (1858, public domain, 17 moves, a queen sacrifice and
+  mate). It is analysed in about 35 s in the end-to-end test (two browsers in
+  parallel).
+- **Analysis stuck at 0 % without the engine.** When `public/engine` was
+  missing (pnpm and Bun skip install scripts; `--ignore-scripts`), the worker
+  loaded the HTML page ("Unexpected token '<'") and the analysis waited
+  forever. The engine driver now fails pending and later searches when its
+  transport breaks or does not answer `uci` within a minute; the browser engine
+  tells a missing file from a broken start ("The chess engine files are
+  missing … run npm install again"), a failed engine is replaced on the next
+  try, and a batch stops with that message instead of counting every game as
+  failed.
+- **No everyday command.** `npm start` builds (about 2 s) and serves the app at
+  a fixed address, http://localhost:4321, opens the browser, says to keep the
+  window open, includes the Chess.com proxy, and when already running just
+  opens it. The address is fixed because the browser keeps games per address.
+- **Unclear Node.js requirement.** The README said 22+, but Vite needs 22.12.
+  `engines`, an `.nvmrc` (24) and a preinstall check now explain an old
+  version in one sentence instead of a stack trace; the harmless `ts-fsrs`
+  EBADENGINE warning on Node.js 22 is documented.
+- **First analysis offline.** The opening book was not prefetched, so a first
+  analysis with the server stopped failed, reported as "the game could not be
+  downloaded". It is now prefetched when idle, a failed load is retried, and a
+  part of the app that cannot be loaded is reported as such. Checked: after one
+  analysis, the installed app analyses new games with `npm start` stopped.
+
+Not done: falling back to the single-threaded engine (cached at install) when
+the multi-threaded one cannot be loaded offline; it only matters when the
+server stops before any analysis.

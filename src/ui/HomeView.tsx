@@ -3,6 +3,7 @@ import { useStore } from '../app/store';
 import { db } from '../db/db';
 import type { Game } from '../core/game';
 import { isFiltering, LIBRARY_PAGE, matchesFilter, NO_FILTER, type LibraryFilter } from '../core/library';
+import { EXAMPLE_PGN, EXAMPLE_TITLE } from '../core/exampleGame';
 
 export function HomeView() {
   const { library, busy, settings, recent, batch } = useStore();
@@ -43,6 +44,7 @@ export function HomeView() {
   }, [filter, filtering, searchGames, library]);
   const shown = filtering ? (found ?? library.filter((g) => matchesFilter(g, filter))) : library;
   const file = useRef<HTMLInputElement>(null);
+  const hasAccount = Boolean(settings.lichessUsername.trim() || settings.chesscomUsername.trim());
 
   return (
     <div className="home">
@@ -82,25 +84,28 @@ export function HomeView() {
             />
           </div>
         </form>
-        {!settings.lichessUsername && !settings.chesscomUsername && (
-          <p className="hint">
-            Tip: add your usernames in <button className="link" onClick={() => setView('settings')}>Settings</button> so the coach knows which side you played.
-          </p>
-        )}
       </section>
 
       <section className="recent card">
         <h2>Your latest games</h2>
-        <div className="import-actions">
-          <button onClick={() => void loadRecent('lichess')} disabled={!settings.lichessUsername || recent?.loading}>
-            From Lichess{settings.lichessUsername ? ` (${settings.lichessUsername})` : ''}
-          </button>
-          <button onClick={() => void loadRecent('chesscom')} disabled={!settings.chesscomUsername || recent?.loading}>
-            From Chess.com{settings.chesscomUsername ? ` (${settings.chesscomUsername})` : ''}
-          </button>
-        </div>
-        {!settings.lichessUsername && !settings.chesscomUsername && (
-          <p className="muted small">Add your usernames in Settings to list your latest games here.</p>
+        {hasAccount ? (
+          <div className="import-actions">
+            {settings.lichessUsername.trim() && (
+              <button onClick={() => void loadRecent('lichess')} disabled={recent?.loading}>
+                From Lichess ({settings.lichessUsername.trim()})
+              </button>
+            )}
+            {settings.chesscomUsername.trim() && (
+              <button onClick={() => void loadRecent('chesscom')} disabled={recent?.loading}>
+                From Chess.com ({settings.chesscomUsername.trim()})
+              </button>
+            )}
+            <button className="link" onClick={() => setView('settings')}>
+              {settings.lichessUsername.trim() && settings.chesscomUsername.trim() ? 'Change accounts' : 'Add or change an account'}
+            </button>
+          </div>
+        ) : (
+          <AccountForm />
         )}
         {recent?.loading && <p className="muted">Loading…</p>}
         {recent && !recent.loading && recent.games.length === 0 && <p className="muted">No recent games found.</p>}
@@ -138,7 +143,7 @@ export function HomeView() {
       </section>
 
       <section className="library">
-        <h2>Analysed games</h2>
+        <h2>{library.length === 0 && !batch ? 'How it works' : 'Analysed games'}</h2>
         {batch && !recent && <BatchStatus />}
         {!batch && unanalysed.length > 0 && (
           <div className="batch">
@@ -169,7 +174,7 @@ export function HomeView() {
           </div>
         )}
         {library.length === 0 ? (
-          <p className="muted">Games you analyse are kept on this device.</p>
+          <FirstSteps onExample={() => void importInput(EXAMPLE_PGN)} busy={busy} />
         ) : shown.length === 0 ? (
           <p className="muted">No game matches these filters.</p>
         ) : (
@@ -201,6 +206,72 @@ export function HomeView() {
           <p className="muted small">Showing the {LIBRARY_PAGE} most recent matches: narrow the search to see others.</p>
         )}
       </section>
+    </div>
+  );
+}
+
+/**
+ * First visit: the player's usernames, asked where their games are listed
+ * (not in Settings), then their latest games at once.
+ */
+function AccountForm() {
+  const { recent } = useStore();
+  const { updateSettings, loadRecent } = useStore.getState();
+  const [lichess, setLichess] = useState('');
+  const [chesscom, setChesscom] = useState('');
+  const ready = Boolean(lichess.trim() || chesscom.trim());
+  return (
+    <form
+      className="account-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!ready) return;
+        void updateSettings({ lichessUsername: lichess.trim(), chesscomUsername: chesscom.trim() }).then(() =>
+          loadRecent(lichess.trim() ? 'lichess' : 'chesscom'),
+        );
+      }}
+    >
+      <p className="muted small">
+        Your username lists your last 20 games, ready to analyse in one go, and tells the coach which side you played. Fill in one or both.
+      </p>
+      <div className="account-fields">
+        <label>
+          Lichess username
+          <input value={lichess} onChange={(e) => setLichess(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} />
+        </label>
+        <label>
+          Chess.com username
+          <input value={chesscom} onChange={(e) => setChesscom(e.target.value)} autoComplete="off" autoCapitalize="none" spellCheck={false} />
+        </label>
+      </div>
+      <button className="primary" type="submit" disabled={!ready || recent?.loading}>
+        Show my games
+      </button>
+    </form>
+  );
+}
+
+/** Empty library: what the app does, and a game to try it on. */
+function FirstSteps({ onExample, busy }: { onExample: () => void; busy: boolean }) {
+  return (
+    <div className="first-steps">
+      <ol className="steps">
+        <li>
+          <strong>Analyse a game.</strong> Stockfish checks every move on your device, and your games stay there.
+        </li>
+        <li>
+          <strong>Understand your mistakes.</strong> Each error is explained from what is on the board, and you can try the position again.
+        </li>
+        <li>
+          <strong>Train on them.</strong> Your mistakes become positions to solve in Training, coming back just before you would forget them.
+        </li>
+      </ol>
+      <div className="import-actions">
+        <button onClick={onExample} disabled={busy}>
+          Try it on an example game
+        </button>
+        <span className="muted small">{EXAMPLE_TITLE}, 17 moves.</span>
+      </div>
     </div>
   );
 }

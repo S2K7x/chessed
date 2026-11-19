@@ -10,7 +10,10 @@ import { createBrowserEngine } from '../engine/browserEngine';
 
 let practiceEngine: UciEngine | undefined;
 /** The engine for practice (retries, training, exploration), separate from the analysis engine. */
-export const engineForPractice = () => (practiceEngine ??= createBrowserEngine());
+export const engineForPractice = () => {
+  if (!practiceEngine || practiceEngine.failed) practiceEngine = createBrowserEngine();
+  return practiceEngine;
+};
 
 export const browserFetch = (url: string, init?: RequestInit) => fetch(url, init);
 
@@ -25,11 +28,14 @@ export function myColorOf(game: Game, s: Settings): Color | undefined {
 }
 
 /** A message for the user from any error. */
-export const errorText = (err: unknown): string =>
-  err instanceof ImportError || err instanceof PgnError
-    ? err.message
-    : err instanceof TypeError
-      ? 'Network error: the game could not be downloaded. Check your connection, or paste the PGN.'
-      : err instanceof Error
-        ? err.message
-        : String(err);
+export const errorText = (err: unknown): string => {
+  if (err instanceof ImportError || err instanceof PgnError) return err.message;
+  if (err instanceof TypeError) {
+    // A lazily loaded part of the app (offline, or the local server stopped).
+    if (/dynamically imported module|importing a module script/i.test(err.message)) {
+      return 'Part of the app could not be loaded. Check your connection (or that Chess Coach is still running), then reload the page.';
+    }
+    return 'Network error: the game could not be downloaded. Check your connection, or paste the PGN.';
+  }
+  return err instanceof Error ? err.message : String(err);
+};

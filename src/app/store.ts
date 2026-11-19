@@ -264,7 +264,11 @@ async function maiaReply(): Promise<void> {
 let analysisEngine: UciEngine | undefined;
 let analysisToken = 0;
 
-const engineForAnalysis = () => (analysisEngine ??= createBrowserEngine());
+const engineForAnalysis = () => {
+  // An engine that failed to start is replaced, so that a retry can succeed.
+  if (!analysisEngine || analysisEngine.failed) analysisEngine = createBrowserEngine();
+  return analysisEngine;
+};
 
 export function analysisSettingsOf(s: Settings, profile: Settings['profile'] = s.profile): AnalysisSettings {
   return profile === 'deep' ? { depth: Math.max(s.depth + 6, 20), multiPv: 3 } : { depth: s.depth, multiPv: 2 };
@@ -853,6 +857,7 @@ export const useStore = create<Store>()((set, get, api) => ({
     const engine = createBrowserEngine();
     batchEngine = engine;
     let failed = 0;
+    let engineError: string | undefined;
     try {
       for (const [i, game] of todo.entries()) {
         if (abort.signal.aborted) break;
@@ -862,8 +867,13 @@ export const useStore = create<Store>()((set, get, api) => ({
           await analyseAndStore(game, engine, analysisSettingsOf(settings), settings, book, cache, abort.signal);
           const r = get().recent;
           if (r?.games.some((g) => g.id === game.id)) set({ recent: { ...r, analysed: [...(r.analysed ?? []), game.id] } });
-        } catch {
+        } catch (err) {
           if (abort.signal.aborted) break;
+          // Without an engine no other game can be analysed: say why and stop.
+          if (engine.failed) {
+            engineError = errorText(err);
+            break;
+          }
           failed++;
         }
         set({ library: await refreshLibrary() });
@@ -873,7 +883,8 @@ export const useStore = create<Store>()((set, get, api) => ({
       batchEngine = undefined;
       batchAbort = undefined;
       set({ batch: undefined, library: await refreshLibrary() });
-      if (failed) set({ error: `${failed} game${failed > 1 ? 's' : ''} could not be analysed.` });
+      if (engineError) set({ error: `Analysis stopped: ${engineError}` });
+      else if (failed) set({ error: `${failed} game${failed > 1 ? 's' : ''} could not be analysed.` });
       void get().refreshDueCount();
     }
   },

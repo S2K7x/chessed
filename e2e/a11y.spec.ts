@@ -27,9 +27,12 @@ for (const scheme of ['dark', 'light'] as const) {
     test.setTimeout(180_000);
     await page.emulateMedia({ colorScheme: scheme });
     await page.goto('/');
+    const found: string[] = [];
+    // First visit: the account form and the first steps.
+    await expect(page.getByRole('button', { name: 'Show my games' })).toBeVisible();
+    found.push(...(await audit(page, 'first visit')));
     await page.locator('.nav').getByRole('button', { name: 'Settings' }).click();
     await page.getByLabel('Lichess username').fill('learner');
-    const found: string[] = [];
     found.push(...(await audit(page, 'settings')));
     await page.locator('.nav').getByRole('button', { name: 'Games' }).click();
     found.push(...(await audit(page, 'home')));

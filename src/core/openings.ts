@@ -16,7 +16,14 @@ export interface Opening {
 let cached: Promise<OpeningBook> | undefined;
 
 export function loadOpeningBook(): Promise<OpeningBook> {
-  cached ??= import('../data/openings.json').then((m) => m.default as unknown as OpeningBook);
+  cached ??= import('../data/openings.json').then(
+    (m) => m.default as unknown as OpeningBook,
+    (err: unknown) => {
+      // Not loaded (offline before it was cached): try again next time.
+      cached = undefined;
+      throw err;
+    },
+  );
   return cached;
 }
 

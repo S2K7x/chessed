@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { useStore } from '../app/store';
 import { requestPersistence } from '../db/db';
 import { preloadScheduler } from '../core/training';
+import { loadOpeningBook } from '../core/openings';
 import { HomeView } from './HomeView';
 import { ReviewView } from './ReviewView';
 
@@ -31,6 +32,8 @@ function prefetchWhenIdle() {
   const run = () => {
     for (const load of Object.values(loaders)) void load().catch(() => undefined);
     void import('../data/masterGames.json').catch(() => undefined);
+    // Every analysis needs the opening book: cache it before the first one.
+    void loadOpeningBook().catch(() => undefined);
     void preloadScheduler().catch(() => undefined);
   };
   if ('requestIdleCallback' in window) window.requestIdleCallback(run, { timeout: 5000 });
