@@ -1,0 +1,177 @@
+<!doctype html>
+<!--
+  Chess Coach — Instagram carousel (1080×1350, 4:5). One slide per ?slide=1…6.
+  Rendered by scripts/render-instagram.mjs. Pictures are real captures of the app.
+  Key content stays clear of the top 130 px and bottom 160 px (feed overlays).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Chess Coach carousel</title>
+<style>
+  @font-face { font-family: 'Jost'; src: url('../node_modules/@fontsource-variable/jost/files/jost-latin-wght-normal.woff2') format('woff2'); font-weight: 100 900; }
+  @font-face { font-family: 'Instrument Serif'; src: url('../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2') format('woff2'); }
+  @font-face { font-family: 'Instrument Serif'; font-style: italic; src: url('../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-italic.woff2') format('woff2'); }
+  :root { --bg: #161412; --surface: #242120; --line: #3b3733; --text: #ebe7e0; --muted: #a39d93; --accent: #f0cd3f; }
+  html, body { margin: 0; background: var(--bg); }
+  .slide {
+    position: relative; width: 1080px; height: 1350px; overflow: hidden; display: none;
+    color: var(--text); font-family: 'Jost', sans-serif; -webkit-font-smoothing: antialiased;
+    background:
+      radial-gradient(900px 700px at 90% 8%, rgb(240 205 63 / 0.08), transparent 60%),
+      radial-gradient(1000px 800px at 0% 100%, rgb(255 240 210 / 0.05), transparent 60%),
+      var(--bg);
+  }
+  .slide.on { display: block; }
+  .pad { position: absolute; left: 84px; right: 84px; top: 140px; }
+  .kicker { font-size: 24px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent); font-weight: 500; margin-bottom: 26px; }
+  h1, h2 { font-family: 'Instrument Serif', serif; font-weight: 400; margin: 0; line-height: 1.0; }
+  h1 { font-size: 132px; }
+  h2 { font-size: 104px; }
+  h1 em, h2 em { color: var(--accent); }
+  .sub { font-size: 34px; line-height: 1.42; color: var(--muted); margin-top: 28px; max-width: 860px; }
+  .sub b { color: var(--text); font-weight: 500; }
+
+  .counter { position: absolute; right: 84px; top: 64px; font-size: 24px; color: var(--muted); letter-spacing: 0.08em; }
+  .brand { position: absolute; left: 84px; top: 58px; font-family: 'Instrument Serif', serif; font-style: italic; font-size: 36px; display: flex; align-items: center; gap: 14px; }
+  .brand img { width: 44px; height: 44px; border-radius: 11px; }
+  .swipe { position: absolute; left: 84px; bottom: 190px; font-size: 28px; color: var(--text); display: flex; align-items: center; gap: 14px; }
+  .swipe span { color: var(--accent); font-size: 40px; line-height: 1; }
+
+  .win { position: absolute; border-radius: 22px; overflow: hidden; background: #1b1917; box-shadow: 0 0 0 1px var(--line), 0 40px 100px rgb(0 0 0 / 0.55); }
+  .win .bar { height: 42px; background: #201d1b; display: flex; align-items: center; gap: 10px; padding: 0 18px; border-bottom: 1px solid #2c2926; }
+  .win .bar i { width: 13px; height: 13px; border-radius: 50%; background: #3e3a36; display: block; }
+  .crop { position: relative; overflow: hidden; }
+  .crop img { position: absolute; display: block; }
+
+  .phone { position: absolute; border-radius: 64px; background: #0c0b0a; padding: 15px; box-shadow: 0 0 0 2px #34302c, 0 50px 120px rgb(0 0 0 / 0.6); }
+  .phone .view { position: relative; overflow: hidden; border-radius: 50px; aspect-ratio: 390 / 844; background: #1b1917; }
+  .phone .view img { position: absolute; left: 0; top: 5%; width: 100%; display: block; }
+  .phone .notch { position: absolute; top: 28px; left: 50%; width: 120px; height: 34px; margin-left: -60px; border-radius: 20px; background: #0c0b0a; z-index: 2; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 34px; }
+  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 12px 26px; font-size: 28px; background: rgb(255 255 255 / 0.03); }
+
+  .legend { position: absolute; left: 84px; right: 84px; top: 560px; display: grid; grid-template-columns: 1fr 1fr; gap: 22px 40px; }
+  .legend div { display: flex; align-items: center; gap: 22px; font-size: 36px; }
+  .badge { min-width: 62px; height: 62px; padding: 0 8px; border-radius: 15px; display: inline-grid; place-items: center; font-weight: 800; font-size: 30px; color: #fff; box-sizing: border-box; }
+  .acc { position: absolute; left: 84px; right: 84px; bottom: 190px; display: flex; gap: 22px; }
+  .acc div { flex: 1; border: 1px solid var(--line); border-radius: 22px; padding: 24px 30px; background: var(--surface); }
+  .acc b { display: block; font-weight: 300; font-size: 76px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .acc small { color: var(--muted); font-size: 24px; }
+
+  .modes { display: grid; gap: 16px; margin-top: 40px; }
+  .modes div { font-size: 31px; display: flex; gap: 16px; align-items: baseline; }
+  .modes span { color: var(--accent); font-family: 'Instrument Serif', serif; font-style: italic; font-size: 38px; width: 34px; }
+
+  .end { text-align: center; }
+  .end .logo { width: 170px; height: 170px; border-radius: 40px; margin: 0 auto; display: block; }
+  .end h1 { font-style: italic; font-size: 150px; margin-top: 38px; }
+  .end .chips { justify-content: center; }
+  .end .cta { display: inline-block; margin-top: 64px; background: var(--accent); color: #1b1917; font-weight: 500; font-size: 36px; padding: 22px 46px; border-radius: 10px; }
+</style>
+</head>
+<body>
+
+<!-- 1. Hook -->
+<section class="slide" data-slide="1">
+  <div class="brand"><img src="../public/icon.svg" alt="" />Chess Coach</div>
+  <div class="counter">1 / 6</div>
+  <div class="pad">
+    <h1>Stop guessing<br /><em>why you lost.</em></h1>
+    <div class="sub" style="max-width: 520px">Chess Coach reviews your games with Stockfish and explains every mistake.</div>
+  </div>
+  <div class="phone" style="width: 420px; left: 610px; top: 560px; transform: rotate(4deg)"><div class="notch"></div><div class="view"><img src="../media/screens/mobile-03-move-mistake.png" alt="" /></div></div>
+  <div class="swipe">Swipe <span>→</span></div>
+</section>
+
+<!-- 2. Import -->
+<section class="slide" data-slide="2">
+  <div class="counter">2 / 6</div>
+  <div class="pad">
+    <div class="kicker">Import</div>
+    <h2>Paste a link.<br /><em>Get a full review.</em></h2>
+    <div class="chips"><span class="chip">Lichess</span><span class="chip">Chess.com</span><span class="chip">Any PGN</span></div>
+  </div>
+  <div class="win" style="left: 84px; right: 84px; top: 690px"><div class="bar"><i></i><i></i><i></i></div>
+    <div class="crop" style="height: 560px"><img src="../media/screens/desktop-02-summary.png" alt="" style="width: 1300px; left: -262px; top: -36px" /></div>
+  </div>
+</section>
+
+<!-- 3. Classification -->
+<section class="slide" data-slide="3">
+  <div class="counter">3 / 6</div>
+  <div class="pad">
+    <div class="kicker">Analyse</div>
+    <h2>Every move,<br /><em>classified.</em></h2>
+    <div class="sub">Stockfish runs in your browser. Your games never leave your device.</div>
+  </div>
+  <div class="legend">
+    <div><span class="badge" style="background:#9a82e6">!!</span>Brilliant</div>
+    <div><span class="badge" style="background:#d6a100">?!</span>Inaccuracy</div>
+    <div><span class="badge" style="background:#6a9be6">!</span>Great move</div>
+    <div><span class="badge" style="background:#e07b24">?</span>Mistake</div>
+    <div><span class="badge" style="background:#4fb47f">✓</span>Best move</div>
+    <div><span class="badge" style="background:#d4567f">×</span>Miss</div>
+    <div><span class="badge" style="background:#a08262">≡</span>Book move</div>
+    <div><span class="badge" style="background:#e0574f">??</span>Blunder</div>
+  </div>
+  <div class="acc" id="acc">
+    <div><b>—</b><small>Paul Morphy · accuracy</small></div>
+    <div><b>—</b><small>His opponents · accuracy</small></div>
+  </div>
+</section>
+
+<!-- 4. Coach -->
+<section class="slide" data-slide="4">
+  <div class="counter">4 / 6</div>
+  <div class="pad">
+    <div class="kicker">Understand</div>
+    <h2>Mistakes,<br /><em>explained.</em></h2>
+    <div class="sub">The better move, what it changes, and the lesson to keep. <b>Every claim is checked by the engine.</b></div>
+  </div>
+  <div class="win" style="left: 84px; right: 84px; top: 650px"><div class="bar"><i></i><i></i><i></i></div>
+    <div class="crop" style="height: 560px"><img src="../media/screens/desktop-03-move-mistake.png" alt="" style="width: 1900px; left: -1030px; top: -225px" /></div>
+  </div>
+</section>
+
+<!-- 5. Training -->
+<section class="slide" data-slide="5">
+  <div class="counter">5 / 6</div>
+  <div class="pad">
+    <div class="kicker">Train</div>
+    <h2>Learn from<br /><em>your own</em> games.</h2>
+    <div class="modes">
+      <div><span>1</span>Your mistakes, spaced out</div>
+      <div><span>2</span>Woodpecker cycles</div>
+      <div><span>3</span>Endgames you let slip</div>
+      <div><span>4</span>Your openings</div>
+      <div><span>5</span>Your next opponent</div>
+      <div><span>6</span>Guess the master's move</div>
+    </div>
+  </div>
+  <div class="phone" style="width: 380px; left: 640px; top: 520px; transform: rotate(4deg)"><div class="notch"></div><div class="view"><img src="../media/screens/mobile-06-training.png" alt="" /></div></div>
+</section>
+
+<!-- 6. CTA -->
+<section class="slide" data-slide="6">
+  <div class="counter">6 / 6</div>
+  <div class="pad end" style="top: 250px">
+    <img class="logo" src="../public/icon.svg" alt="" />
+    <h1>Chess Coach</h1>
+    <div class="sub" style="margin: 26px auto 0">Review your games. Understand your mistakes. Improve.</div>
+    <div class="chips"><span class="chip">Free</span><span class="chip">Open source</span><span class="chip">No account</span><span class="chip">Desktop &amp; mobile</span></div>
+    <div class="cta">Link in bio</div>
+  </div>
+</section>
+
+<script>
+  const n = new URLSearchParams(location.search).get('slide') || '1';
+  document.querySelector(`[data-slide="${n}"]`).classList.add('on');
+  // Accuracy figures, passed in from the capture so that they match the pictures.
+  const acc = new URLSearchParams(location.search).get('acc');
+  if (acc) acc.split(',').forEach((v, i) => { document.querySelectorAll('#acc b')[i].textContent = v; });
+  window.ready = Promise.all([document.fonts.ready, ...[...document.images].map((im) => im.decode().catch(() => undefined))]);
+</script>
+</body>
+</html>

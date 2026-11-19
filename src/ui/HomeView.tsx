@@ -268,7 +268,7 @@ function FirstSteps({ onExample, busy }: { onExample: () => void; busy: boolean 
         </li>
       </ol>
       <div className="import-actions">
-        <button onClick={onExample} disabled={busy}>
+        <button className="primary" onClick={onExample} disabled={busy}>
           {t('home.example')}
         </button>
         <span className="muted small">{t('home.exampleTitle')}</span>
