@@ -1824,3 +1824,16 @@ cg-board square.move-dest.hover {
 .goal .progress {
   margin: 0;
 }
+
+/* Training layouts: room on the left for the rank numbers drawn outside the board. */
+.training-board .board-wrap {
+  padding-left: 24px;
+}
+@media (max-width: 520px) {
+  .training-board .board-wrap {
+    padding-left: 18px;
+  }
+  .training-board .cg-wrap coords.ranks {
+    left: -16px;
+  }
+}

@@ -275,6 +275,8 @@ interface Actions {
   trainingHint(): void;
   trainingGiveUp(): Promise<void>;
   trainingNext(): Promise<void>;
+  /** Leaves the training session for the training page (answers given so far are kept). */
+  endTraining(): void;
   openWoodpecker(): Promise<void>;
   newWoodpeckerSet(size: number): Promise<void>;
   startWoodpeckerCycle(): Promise<void>;
@@ -304,6 +306,8 @@ interface Actions {
   reanalyseOutdated(): Promise<void>;
   /** Analyses, in the background, the recent games that are not analysed yet. */
   analyseRecent(): Promise<void>;
+  /** Analyses, in the background, the given games that are not analysed yet. */
+  analyseBatch(games: Game[]): Promise<void>;
   stopBatch(): void;
   exportBackup(): Promise<void>;
   importBackup(file: File): Promise<void>;
@@ -477,7 +481,13 @@ export const useStore = create<State & Actions>((set, get) => ({
   },
 
   setView(view) {
-    set({ view });
+    // A finished training session gives way to the training page.
+    if (view === 'training' && get().training?.status === 'finished') set({ view, training: undefined });
+    else set({ view });
+  },
+
+  endTraining() {
+    set({ training: undefined, view: 'training' });
   },
 
   async updateSettings(patch) {
@@ -1195,10 +1205,15 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   async analyseRecent() {
     const recent = get().recent;
-    if (!recent || recent.loading || get().batch) return;
+    if (!recent || recent.loading) return;
+    await get().analyseBatch(recent.games);
+  },
+
+  async analyseBatch(games) {
+    if (get().batch) return;
     const settings = get().settings;
     const analysed = new Set((await db.reviews.toCollection().primaryKeys()) as string[]);
-    const todo = recent.games.filter((g) => !analysed.has(g.id));
+    const todo = games.filter((g) => !analysed.has(g.id));
     if (todo.length === 0) return;
     const abort = new AbortController();
     batchAbort = abort;
@@ -1217,8 +1232,8 @@ export const useStore = create<State & Actions>((set, get) => ({
           await db.games.put(game);
           await analyseAndStore(game, engine, analysisSettingsOf(settings), settings, book, cache, abort.signal);
           const r = get().recent;
-          if (r) set({ recent: { ...r, analysed: [...(r.analysed ?? []), game.id] } });
-        } catch (err) {
+          if (r?.games.some((g) => g.id === game.id)) set({ recent: { ...r, analysed: [...(r.analysed ?? []), game.id] } });
+        } catch {
           if (abort.signal.aborted) break;
           failed++;
         }

@@ -11,7 +11,7 @@ const GRADE_TEXT = { easy: 'Easy', good: 'Good', hard: 'Hard', again: 'To review
 /** Daily review of the player's own mistakes (spaced repetition). */
 export function TrainingView() {
   const { training, dueCount, today, settings } = useStore();
-  const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView, openWoodpecker, openEndgames, openGuess, openOpenings } = useStore.getState();
+  const { startTraining, trainingAttempt, trainingHint, trainingGiveUp, trainingNext, setView, openWoodpecker, openEndgames, openGuess, openOpenings, endTraining } = useStore.getState();
   const ex = training?.queue[training.index];
   const move = training?.move;
   const isThreat = ex?.kind === 'threat';
@@ -99,6 +99,7 @@ export function TrainingView() {
         <div className="coach-actions">
           <button className="primary" onClick={() => setView('progress')}>See your progress</button>
           {dueCount > 0 && <button onClick={() => void startTraining()}>Another round</button>}
+          <button onClick={endTraining}>Back to training</button>
         </div>
       </div>
     );
@@ -179,6 +180,7 @@ export function TrainingView() {
           <div className="coach-actions">
             {solving && training.hints < 3 && <button onClick={trainingHint}>Hint</button>}
             {solving && <button onClick={() => void trainingGiveUp()}>Show the answer</button>}
+            <button onClick={endTraining}>Stop</button>
             {!solving && move && move.bestLine.length > 1 && (
               <p className="muted small">Best line: {formatLine(move.bestLine, 8)}</p>
             )}

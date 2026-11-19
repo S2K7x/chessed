@@ -1,9 +1,23 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../app/store';
+import { db } from '../db/db';
 
 export function HomeView() {
   const { library, busy, settings, recent, batch } = useStore();
-  const { importInput, importFile, openGame, deleteGame, setView, loadRecent, analyseRecent, stopBatch } = useStore.getState();
+  const { importInput, importFile, openGame, deleteGame, setView, loadRecent, analyseRecent, analyseBatch } = useStore.getState();
+  // Which games of the library have a review (refreshed with the library).
+  const [analysedIds, setAnalysedIds] = useState<Set<string>>();
+  useEffect(() => {
+    let live = true;
+    void db.reviews
+      .toCollection()
+      .primaryKeys()
+      .then((ids) => live && setAnalysedIds(new Set(ids as string[])));
+    return () => {
+      live = false;
+    };
+  }, [library]);
+  const unanalysed = analysedIds ? library.filter((g) => !analysedIds.has(g.id)) : [];
   const analysedRecent = new Set(recent?.analysed ?? []);
   const toAnalyse = recent ? recent.games.filter((g) => !analysedRecent.has(g.id)).length : 0;
   const [text, setText] = useState('');
@@ -80,16 +94,7 @@ export function HomeView() {
         {recent && recent.games.length > 0 && (
           <div className="batch" aria-live="polite">
             {batch ? (
-              <>
-                <p className="batch-status">
-                  Analysing game {Math.min(batch.done + 1, batch.total)} of {batch.total}
-                  {batch.current ? <span className="muted"> · {batch.current}</span> : null}
-                </p>
-                <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={batch.total} aria-valuenow={batch.done}>
-                  <div className="progress-fill" style={{ width: `${(100 * batch.done) / batch.total}%` }} />
-                </div>
-                <button onClick={stopBatch}>Stop</button>
-              </>
+              <BatchStatus />
             ) : toAnalyse > 0 ? (
               <>
                 <p className="muted small">The dashboard and your training get better with each analysed game. You can keep reviewing meanwhile.</p>
@@ -121,6 +126,18 @@ export function HomeView() {
 
       <section className="library">
         <h2>Analysed games</h2>
+        {batch && !recent && <BatchStatus />}
+        {!batch && unanalysed.length > 0 && (
+          <div className="batch">
+            <p className="muted small">
+              {unanalysed.length} game{unanalysed.length > 1 ? 's are' : ' is'} not analysed yet (imported from a file, or an analysis was
+              interrupted).
+            </p>
+            <button className="primary" onClick={() => void analyseBatch(unanalysed)}>
+              Analyse {unanalysed.length > 1 ? `these ${unanalysed.length} games` : 'it'}
+            </button>
+          </div>
+        )}
         {library.length > 0 && (
           <div className="filters" role="search">
             <input aria-label="Search players or openings" placeholder="Player or opening" value={filter.query} onChange={(e) => setFilter({ ...filter, query: e.target.value })} />
@@ -149,6 +166,7 @@ export function HomeView() {
                 <button className="library-open" onClick={() => void openGame(g)}>
                   <span className="library-players">
                     {g.white.name} <span className="muted">vs</span> {g.black.name}
+                    {analysedIds && !analysedIds.has(g.id) && <span className="tag">not analysed</span>}
                   </span>
                   <span className="muted">
                     {[g.result, g.timeControl?.speed, g.date, g.openingName].filter(Boolean).join(' · ')}
@@ -162,6 +180,25 @@ export function HomeView() {
           </ul>
         )}
       </section>
+    </div>
+  );
+}
+
+/** Progress of the games being analysed in the background. */
+function BatchStatus() {
+  const { batch } = useStore();
+  const { stopBatch } = useStore.getState();
+  if (!batch) return null;
+  return (
+    <div className="batch" aria-live="polite">
+      <p className="batch-status">
+        Analysing game {Math.min(batch.done + 1, batch.total)} of {batch.total}
+        {batch.current ? <span className="muted"> · {batch.current}</span> : null}
+      </p>
+      <div className="progress" role="progressbar" aria-label="Games analysed" aria-valuemin={0} aria-valuemax={batch.total} aria-valuenow={batch.done}>
+        <div className="progress-fill" style={{ width: `${(100 * batch.done) / batch.total}%` }} />
+      </div>
+      <button onClick={stopBatch}>Stop</button>
     </div>
   );
 }

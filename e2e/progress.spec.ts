@@ -85,6 +85,8 @@ test('progress dashboard, spaced training and backup', async ({ page }, info) =>
   await expect(page.locator('.calendar-day.is-today')).not.toHaveClass(/level-0/);
   await page.locator('.nav').getByRole('button', { name: 'Training' }).click();
   await expect(page.getByLabel('Daily goal')).toContainText(`Today: ${Math.min(total, 10)} / 10 positions`);
+  // After a session, the training page offers every mode again.
+  await expect(page.getByRole('button', { name: 'Open Woodpecker' })).toBeVisible();
 
   // Backup export.
   await page.locator('.nav').getByRole('button', { name: 'Settings' }).click();

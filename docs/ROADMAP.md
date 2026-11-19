@@ -164,3 +164,19 @@ Measured and left as is:
   consecutive active days up to today (or yesterday while today is still
   open); the goal (Settings, 10 by default) is shown on the training page and
   the dashboard.
+
+## Fixes from a phone-size and accessibility pass
+
+- **Leaving a training session.** Once a spaced-review session had started,
+  the Training tab always showed it: there was no way out mid-session, and
+  after "Session done" the other modes were unreachable until a reload. A
+  session now has Stop, the end screen has Back to training, and the tab
+  returns to the training page once a session is finished.
+- **PGN files with several games.** All games were saved but only the first was
+  analysed, while the others were listed among the analysed games. Games
+  without a review are now marked "not analysed" and can be analysed in one go
+  (the same background queue as the latest games).
+- **Rank numbers** were cut off on phones on the training screens (they are
+  drawn outside the board).
+- **Accessibility audit** extended to the training sessions (spaced review,
+  Woodpecker, endgames, guess the move, openings): no serious violation.
