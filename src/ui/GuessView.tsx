@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useStore, type GuessSession, type GuessState } from '../app/store';
 import type { Color } from '../core/eval';
 import type { Arrow } from '../core/explain';
-import { GUESS_TEXT, guessScore, shortPlayerName } from '../core/guess';
+import { guessScore, guessText, shortPlayerName } from '../core/guess';
 import masterGames from '../data/masterGames.json';
 import { Board } from './Board';
 import { San } from './San';
+import { t } from '../i18n';
+import { sideLower, sideName } from './names';
 
 /** Header fields of a bundled game, read from its PGN. */
 function headers(pgn: string): Record<string, string> {
@@ -34,7 +36,7 @@ export function GuessView() {
   useEffect(() => {
     if (!guess) void openGuess();
   }, [guess, openGuess]);
-  if (!guess) return <p className="muted">Loading…</p>;
+  if (!guess) return <p className="muted">{t('common.loading')}</p>;
   if (guess.session) return <Session state={guess} session={guess.session} />;
   return <GameList state={guess} />;
 }
@@ -45,11 +47,8 @@ function GameList({ state }: { state: GuessState }) {
   const best = (id: string, side: Color) => state.best[`${id}:${side}`];
   return (
     <div className="card narrow guess">
-      <h1>Guess the move</h1>
-      <p>
-        Follow a master game from one side and guess each move before it is played. The master&apos;s move scores 3; another
-        move scores 2 when the engine finds it as good, 1 when it is close. The opening is skipped.
-      </p>
+      <h1>{t('guess.title')}</h1>
+      <p>{t('guess.intro')}</p>
       <ul className="guess-list">
         {GAMES.map((g) => (
           <li key={g.id}>
@@ -66,29 +65,29 @@ function GameList({ state }: { state: GuessState }) {
               {(['white', 'black'] as const)
                 .map((side) => best(g.id, side))
                 .filter(Boolean)
-                .map((r) => `${r!.side === 'white' ? 'W' : 'B'} ${Math.round(r!.percent)}%`)
+                .map((r) => `${t(r!.side === 'white' ? 'guess.w' : 'guess.b')} ${Math.round(r!.percent)}${t('common.percent')}`)
                 .join(' · ')}
             </span>
             <span className="guess-sides">
-              <button className={g.result === '1-0' ? 'primary' : ''} onClick={() => void startGuess({ id: g.id }, 'white')} aria-label={`White: play ${g.white} against ${g.black}`}>
-                White
+              <button className={g.result === '1-0' ? 'primary' : ''} onClick={() => void startGuess({ id: g.id }, 'white')} aria-label={t('guess.playAs', { side: sideName('white'), me: g.white, them: g.black })}>
+                {sideName('white')}
               </button>
-              <button className={g.result === '0-1' ? 'primary' : ''} onClick={() => void startGuess({ id: g.id }, 'black')} aria-label={`Black: play ${g.black} against ${g.white}`}>
-                Black
+              <button className={g.result === '0-1' ? 'primary' : ''} onClick={() => void startGuess({ id: g.id }, 'black')} aria-label={t('guess.playAs', { side: sideName('black'), me: g.black, them: g.white })}>
+                {sideName('black')}
               </button>
             </span>
           </li>
         ))}
       </ul>
       <details className="guess-paste">
-        <summary>Use another game (PGN)</summary>
-        <textarea rows={5} value={pgn} onChange={(e) => setPgn(e.target.value)} aria-label="PGN of the game to guess" placeholder="[White &quot;…&quot;] 1. e4 e5 …" />
+        <summary>{t('guess.other')}</summary>
+        <textarea rows={5} value={pgn} onChange={(e) => setPgn(e.target.value)} aria-label={t('guess.pgnLabel')} placeholder="[White &quot;…&quot;] 1. e4 e5 …" />
         <button onClick={() => void startGuess({ pgn })} disabled={!pgn.trim()}>
-          Guess this game
+          {t('guess.this')}
         </button>
       </details>
       <p>
-        <button className="link" onClick={() => setView('training')}>Back to training</button>
+        <button className="link" onClick={() => setView('training')}>{t('common.backToTraining')}</button>
       </p>
     </div>
   );
@@ -135,11 +134,11 @@ function Session({ state, session: s }: { state: GuessState; session: GuessSessi
       <aside className="training-side">
         <section className="coach" aria-live="polite">
           <p className="coach-kicker">
-            You are {me} ({side}) · move {Math.ceil(master.ply / 2)}
+            {t('guess.youAre', { me, side: sideLower(side), n: Math.ceil(master.ply / 2) })}
           </p>
-          <p className="score-big" aria-label="Score">
+          <p className="score-big" aria-label={t('guess.score')}>
             {score.points}
-            <small>/ {score.max} points</small>
+            <small>{t('guess.max', { max: score.max })}</small>
           </p>
           <ul className="guess-trail" aria-hidden="true">
             {s.results.map((r) => (
@@ -152,28 +151,28 @@ function Session({ state, session: s }: { state: GuessState; session: GuessSessi
 
           {s.status === 'guessing' && (
             <>
-              <h2 className="coach-title">What did {me} play?</h2>
+              <h2 className="coach-title">{t('guess.question', { me })}</h2>
               {previous && (
                 <p className="muted">
-                  {them} has just played <San san={previous.san} color={previous.color} />.
+                  {t('guess.justPlayed', { them })} <San san={previous.san} color={previous.color} />.
                 </p>
               )}
             </>
           )}
-          {s.status === 'judging' && <p className="coach-summary">Checking your move…</p>}
+          {s.status === 'judging' && <p className="coach-summary">{t('common.checking')}</p>}
           {revealed && last && (
             <>
               <p className={`guess-verdict display is-${last.verdict}`}>
-                {GUESS_TEXT[last.verdict]} {last.points > 0 ? `+${last.points}` : ''}
+                {guessText(last.verdict)} {last.points > 0 ? `+${last.points}` : ''}
               </p>
               <p>
                 {last.verdict === 'master' ? (
                   <>
-                    {me} played <San san={last.masterSan} color={side} /> too.
+                    {t('guess.too.before', { me })} <San san={last.masterSan} color={side} />{t('guess.too.after')}
                   </>
                 ) : (
                   <>
-                    You played <San san={last.guessSan} color={side} />; {me} played <San san={last.masterSan} color={side} />.
+                    {t('guess.you')} <San san={last.guessSan} color={side} />{t('guess.semicolon', { me })} <San san={last.masterSan} color={side} />.
                   </>
                 )}
               </p>
@@ -181,22 +180,21 @@ function Session({ state, session: s }: { state: GuessState; session: GuessSessi
           )}
           {s.status === 'finished' && (
             <p className="coach-summary verdict-good">
-              Game over: {score.points} of {score.max} points ({Math.round(score.percent)}%), {score.matched} of {score.guessed} moves exactly as
-              {` ${me}`}.
+              {t('guess.over', { points: score.points, max: score.max, pct: Math.round(score.percent), matched: score.matched, guessed: score.guessed, me })}
             </p>
           )}
           <div className="coach-actions">
             {s.status === 'revealed' && (
               <button className="primary" onClick={() => void guessNext()}>
-                {s.step + 1 < s.indices.length ? 'Next move' : 'See the result'}
+                {s.step + 1 < s.indices.length ? t('common.nextMove') : t('guess.result')}
               </button>
             )}
             {s.status === 'finished' && (
               <button className="primary" onClick={() => void startGuess(s.sourceId.startsWith('pasted:') ? { pgn: game.pgn } : { id: s.sourceId }, side)}>
-                Play again
+                {t('guess.again')}
               </button>
             )}
-            <button onClick={leaveGuess}>{s.status === 'finished' ? 'Other games' : 'Stop'}</button>
+            <button onClick={leaveGuess}>{s.status === 'finished' ? t('guess.others') : t('common.stop')}</button>
           </div>
         </section>
       </aside>

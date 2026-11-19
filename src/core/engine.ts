@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { Chess } from 'chessops/chess';
 import { parseFen } from 'chessops/fen';
 import { fromUciScore, type Color, type EngineLine, type PositionEval } from './eval';
@@ -61,7 +62,7 @@ export class UciEngine implements Evaluator {
     transport.onError?.((err) => this.fail(err));
     const timer =
       start.startupTimeoutMs !== undefined
-        ? setTimeout(() => this.fail(new Error('The chess engine did not start in time.')), start.startupTimeoutMs)
+        ? setTimeout(() => this.fail(new Error(t('engine.timeout'))), start.startupTimeoutMs)
         : undefined;
     this.ready = (async () => {
       await this.command('uci', 'uciok');

@@ -2,8 +2,10 @@ import { useState, type FormEvent } from 'react';
 import { useStore } from '../app/store';
 import type { Color } from '../core/eval';
 import type { OpponentLine, OpponentSide } from '../core/opponent';
+import { t } from '../i18n';
+import { sideLower } from './names';
 
-const pct = (x: number) => `${Math.round(100 * x)}%`;
+const pct = (x: number) => `${Math.round(100 * x)}${t('common.percent')}`;
 
 /** Preparing for an opponent: their openings, how they score, and training against them. */
 export function OpponentView() {
@@ -21,43 +23,40 @@ export function OpponentView() {
 
   return (
     <div className="card opponent">
-      <h1>Prepare for an opponent</h1>
-      <p className="muted">
-        Their recent games show what they play with each colour, and where they do well or badly. Then train your openings against their
-        actual moves.
-      </p>
+      <h1>{t('opponent.title')}</h1>
+      <p className="muted">{t('opponent.intro')}</p>
       <form className="opponent-form" onSubmit={submit}>
-        <select aria-label="Site" value={platform} onChange={(e) => setPlatform(e.target.value as 'lichess' | 'chesscom')}>
+        <select aria-label={t('opponent.site')} value={platform} onChange={(e) => setPlatform(e.target.value as 'lichess' | 'chesscom')}>
           <option value="lichess">Lichess</option>
           <option value="chesscom">Chess.com</option>
         </select>
-        <input aria-label="Opponent's username" placeholder="Their username" value={username} onChange={(e) => setUsername(e.target.value)} />
-        <select aria-label="Games to look at" value={max} onChange={(e) => setMax(Number(e.target.value))}>
+        <input aria-label={t('opponent.username')} placeholder={t('opponent.placeholder')} value={username} onChange={(e) => setUsername(e.target.value)} />
+        <select aria-label={t('opponent.max')} value={max} onChange={(e) => setMax(Number(e.target.value))}>
           {[50, 100, 200].map((n) => (
             <option key={n} value={n}>
-              Last {n} games
+              {t('opponent.last', { n })}
             </option>
           ))}
         </select>
         <button className="primary" type="submit" disabled={!username.trim() || opponent?.loading}>
-          {opponent?.loading ? 'Loading their games…' : 'Scout'}
+          {opponent?.loading ? t('opponent.loading') : t('opponent.scout')}
         </button>
       </form>
 
-      {report && report.games === 0 && <p className="muted">No finished game of {report.username} found.</p>}
+      {report && report.games === 0 && <p className="muted">{t('opponent.noGame', { name: report.username })}</p>}
       {report && report.games > 0 && (
         <>
           <p className="opponent-summary">
-            <strong>{report.username}</strong> · {report.games} games · scores {pct((report.white.score * report.white.games + report.black.score * report.black.games) / report.games)}
+            <strong>{report.username}</strong> · {t('common.games', { count: report.games })} · {t('opponent.scores')} {pct((report.white.score * report.white.games + report.black.score * report.black.games) / report.games)}
           </p>
           <div className="opponent-sides">
-            <Side title="When they play White" side={report.white} you="black" hasMe={hasMe} />
-            <Side title="When they play Black" side={report.black} you="white" hasMe={hasMe} />
+            <Side title={t('opponent.asWhite')} side={report.white} you="black" hasMe={hasMe} />
+            <Side title={t('opponent.asBlack')} side={report.black} you="white" hasMe={hasMe} />
           </div>
         </>
       )}
       <p>
-        <button className="link" onClick={() => setView('training')}>Back to training</button>
+        <button className="link" onClick={() => setView('training')}>{t('common.backToTraining')}</button>
       </p>
     </div>
   );
@@ -72,7 +71,7 @@ function Lines({ lines }: { lines: OpponentLine[] }) {
             {l.opening && <strong>{l.opening}</strong>}
             <span className="muted small">{l.moves}</span>
           </span>
-          <span className="opponent-score" title={`${l.games} games, they score ${pct(l.score)}`}>
+          <span className="opponent-score" title={t('opponent.lineTitle', { count: l.games, pct: pct(l.score) })}>
             <span className="score-bar" aria-hidden="true">
               <span style={{ width: pct(l.score) }} />
             </span>
@@ -90,7 +89,7 @@ function Side({ title, side, you, hasMe }: { title: string; side: OpponentSide; 
     return (
       <section className="opponent-side">
         <h2>{title}</h2>
-        <p className="muted">No game.</p>
+        <p className="muted">{t('opponent.noGameSide')}</p>
       </section>
     );
   }
@@ -98,25 +97,25 @@ function Side({ title, side, you, hasMe }: { title: string; side: OpponentSide; 
     <section className="opponent-side">
       <h2>{title}</h2>
       <p className="muted small">
-        {side.games} games · they score {pct(side.score)}
+        {t('opponent.sideSummary', { count: side.games, pct: pct(side.score) })}
       </p>
       <Lines lines={side.lines.slice(0, 6)} />
       {side.strong.length > 0 && (
         <>
-          <h3>Their best lines: avoid them</h3>
+          <h3>{t('opponent.strong')}</h3>
           <Lines lines={side.strong.slice(0, 3)} />
         </>
       )}
       {side.weak.length > 0 && (
         <>
-          <h3>Their weakest lines: aim for them</h3>
+          <h3>{t('opponent.weak')}</h3>
           <Lines lines={side.weak.slice(0, 3)} />
         </>
       )}
       {hasMe ? (
-        <button onClick={() => void practiseAgainst(you)}>Train your openings as {you} against their moves</button>
+        <button onClick={() => void practiseAgainst(you)}>{t('opponent.train', { side: sideLower(you) })}</button>
       ) : (
-        <p className="muted small">Set your username in Settings to train your openings against theirs.</p>
+        <p className="muted small">{t('opponent.needMe')}</p>
       )}
     </section>
   );

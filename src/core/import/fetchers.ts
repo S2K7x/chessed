@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import { makeSan } from 'chessops/san';
 import { Chess } from 'chessops/chess';
 import { parseFen } from 'chessops/fen';
@@ -26,7 +27,7 @@ const CHESSCOM_API = 'https://api.chess.com/pub';
 export async function importGame(input: string, ctx: ImportContext): Promise<Game> {
   const ref = parseGameUrl(input);
   if (!ref) {
-    if (/^\s*https?:\/\//.test(input)) throw new ImportError('This link is not a Lichess or Chess.com game.');
+    if (/^\s*https?:\/\//.test(input)) throw new ImportError(t('import.badLink'));
     return parseGame(input);
   }
   return ref.platform === 'lichess' ? importLichess(ref.id, ctx) : importChesscom(ref, ctx);
@@ -35,9 +36,9 @@ export async function importGame(input: string, ctx: ImportContext): Promise<Gam
 export async function importLichess(id: string, ctx: ImportContext): Promise<Game> {
   const url = `${LICHESS}/game/export/${id}?clocks=true&evals=false&opening=true&literate=false`;
   const res = await ctx.fetch(url, { headers: { Accept: 'application/x-chess-pgn' } });
-  if (res.status === 404) throw new ImportError('Lichess has no game with this id.');
-  if (res.status === 429) throw new ImportError('Lichess is rate limiting requests. Wait a minute and try again.');
-  if (!res.ok) throw new ImportError(`Lichess answered ${res.status}.`);
+  if (res.status === 404) throw new ImportError(t('import.lichess.noGame'));
+  if (res.status === 429) throw new ImportError(t('import.lichess.rate'));
+  if (!res.ok) throw new ImportError(t('import.lichess.status', { status: res.status }));
   const pgn = await res.text();
   return parseGame(pgn, { source: 'lichess', sourceGameId: id, sourceUrl: `${LICHESS}/${id}` });
 }
@@ -46,8 +47,8 @@ export async function importLichess(id: string, ctx: ImportContext): Promise<Gam
 export async function lichessUserGames(username: string, max: number, ctx: ImportContext): Promise<Game[]> {
   const url = `${LICHESS}/api/games/user/${encodeURIComponent(username)}?max=${max}&clocks=true&opening=true&evals=false`;
   const res = await ctx.fetch(url, { headers: { Accept: 'application/x-chess-pgn' } });
-  if (res.status === 404) throw new ImportError(`No Lichess user named ${username}.`);
-  if (!res.ok) throw new ImportError(`Lichess answered ${res.status}.`);
+  if (res.status === 404) throw new ImportError(t('import.lichess.noUser', { name: username }));
+  if (!res.ok) throw new ImportError(t('import.lichess.status', { status: res.status }));
   const text = await res.text();
   if (!text.trim()) return [];
   return parseGames(text, { source: 'lichess' }).map((g) => withLichessId(g));
@@ -72,8 +73,8 @@ async function chesscomArchive(username: string, year: number, month: number, ct
   const mm = String(month).padStart(2, '0');
   const res = await ctx.fetch(`${CHESSCOM_API}/player/${encodeURIComponent(username.toLowerCase())}/games/${year}/${mm}`);
   if (res.status === 404) return [];
-  if (res.status === 429) throw new ImportError('Chess.com is rate limiting requests. Try again in a moment.');
-  if (!res.ok) throw new ImportError(`Chess.com answered ${res.status}.`);
+  if (res.status === 429) throw new ImportError(t('import.chesscom.rate'));
+  if (!res.ok) throw new ImportError(t('import.chesscom.status', { status: res.status }));
   const data = (await res.json()) as { games?: ArchiveGame[] };
   return data.games ?? [];
 }
@@ -81,7 +82,7 @@ async function chesscomArchive(username: string, year: number, month: number, ct
 const gameIdOf = (url: string) => /\/(\d+)(?:\?.*)?$/.exec(url)?.[1];
 
 function fromArchive(g: ArchiveGame, ref: { id: string }): Game {
-  if (!g.pgn) throw new ImportError('Chess.com returned the game without its PGN.');
+  if (!g.pgn) throw new ImportError(t('import.chesscom.noPgn'));
   return parseGame(g.pgn, { source: 'chesscom', sourceGameId: ref.id, sourceUrl: g.url });
 }
 
@@ -117,7 +118,7 @@ export async function importChesscom(ref: Extract<GameRef, { platform: 'chesscom
   if (ctx.chesscomProxy) {
     const res = await ctx.fetch(`${ctx.chesscomProxy}/${ref.type}/game/${ref.id}`);
     if (res.ok) callback = (await res.json()) as CallbackGame;
-    else if (res.status === 404) throw new ImportError('Chess.com has no game with this id.');
+    else if (res.status === 404) throw new ImportError(t('import.chesscom.noGame'));
   }
 
   // 1. Official archive of a player of the game (exact PGN with clocks).
@@ -139,8 +140,8 @@ export async function importChesscom(ref: Extract<GameRef, { platform: 'chesscom
 
   throw new ImportError(
     ctx.chesscomProxy
-      ? 'This Chess.com game could not be found. Paste its PGN instead (Share → PGN on Chess.com).'
-      : 'Add your Chess.com username in Settings to import your games by link, or paste the PGN.',
+      ? t('import.chesscom.notFound')
+      : t('import.chesscom.needUser'),
   );
 }
 
@@ -152,7 +153,7 @@ function fromCallback(cb: CallbackGame, ref: { id: string; type: string }): Game
   for (const uci of decodeTcn(cb.game?.moveList ?? '')) {
     // Chess.com encodes castling as king-takes-rook in some games: try the standard form first.
     const move = legalUci(pos, uci) ?? legalUci(pos, castlingFix(uci));
-    if (!move) throw new PgnError(`Chess.com move ${uci} is not legal here.`);
+    if (!move) throw new PgnError(t('import.chesscom.illegal', { uci }));
     sans.push(makeSan(pos, move));
     pos.play(move);
   }

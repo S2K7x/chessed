@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { AttemptResult } from './retry';
 import type { Color } from './eval';
 import type { Game } from './game';
@@ -74,9 +75,5 @@ export function shortPlayerName(name: string): string {
   return name.split(',')[0]!.trim();
 }
 
-export const GUESS_TEXT: Readonly<Record<GuessVerdict, string>> = {
-  master: "The master's move.",
-  'as-good': "Not the master's move, but just as good.",
-  close: 'Close: a reasonable move, a little weaker.',
-  miss: 'Not this time.',
-};
+/** The verdict of a guess, in words. */
+export const guessText = (v: GuessVerdict): string => t(`guess.verdict.${v}`);

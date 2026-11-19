@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import type { StateCreator } from 'zustand';
 import type { Store } from '../store';
 import { replayUci } from '../../core/chess';
@@ -62,7 +63,7 @@ export const createGuessSlice: StateCreator<Store, [], [], GuessSlice> = (set, g
           sourceId = entry.id;
         } else {
           const parsed = parseGames(source.pgn)[0];
-          if (!parsed || parsed.moves.length < 10) throw new PgnError('This game is too short to guess its moves.');
+          if (!parsed || parsed.moves.length < 10) throw new PgnError(t('guess.tooShort'));
           game = parsed;
           sourceId = `pasted:${game.id}`;
         }

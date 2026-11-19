@@ -69,6 +69,13 @@ mistakes, and practise the positions where you went wrong.
 - **Optional language-model coach.** Claude rewrites the verified facts for your
   level (beginner, intermediate, advanced); every answer is checked against the
   board before it is shown. See [docs/COACH.md](docs/COACH.md).
+- **English and French.** The whole interface, the explanations, the game
+  summaries and the language-model coach switch between English and French
+  (header or Settings). The browser's language is used on the first visit and
+  the choice is remembered; reviews already stored are written again in the
+  new language from their facts, without a new analysis. Moves stay in English
+  algebraic notation (Nf3, Qxd5) in both languages; opening names stay in
+  English.
 
 ## Getting started
 

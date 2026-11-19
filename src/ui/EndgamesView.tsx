@@ -3,8 +3,9 @@ import { useStore, type EndgamesState } from '../app/store';
 import { materialText, type EndgameDrill } from '../core/endgame';
 import { formatLine, type Arrow } from '../core/explain';
 import { Board } from './Board';
+import { t } from '../i18n';
+import { sideLower } from './names';
 
-const GOAL_TEXT = { win: 'Win it', draw: 'Hold the draw' } as const;
 
 /** Endgames from your games that you were winning (or drawing) and let slip, to play again against Stockfish. */
 export function EndgamesView() {
@@ -15,31 +16,27 @@ export function EndgamesView() {
     if (!endgames) void openEndgames();
   }, [endgames, openEndgames]);
 
-  if (!endgames) return <p className="muted">Loading…</p>;
+  if (!endgames) return <p className="muted">{t('common.loading')}</p>;
   if (endgames.session || endgames.thinking) return <Drill state={endgames} />;
   return <DrillList state={endgames} />;
 }
 
 function bestResult(d: EndgameDrill): { text: string; cls: string } {
-  if (d.attempts.some((a) => a.result === 'success')) return { text: d.goal === 'win' ? 'Converted' : 'Held', cls: 'verdict-good' };
+  if (d.attempts.some((a) => a.result === 'success')) return { text: d.goal === 'win' ? t('endgames.converted') : t('endgames.held'), cls: 'verdict-good' };
   const tries = d.attempts.filter((a) => a.result !== 'stopped').length;
-  if (tries) return { text: `${tries} ${tries === 1 ? 'try' : 'tries'}`, cls: 'verdict-bad' };
-  return { text: 'New', cls: 'muted' };
+  if (tries) return { text: t('endgames.tries', { count: tries }), cls: 'verdict-bad' };
+  return { text: t('endgames.new'), cls: 'muted' };
 }
 
 function DrillList({ state }: { state: EndgamesState }) {
   const { startEndgameDrill, setView } = useStore.getState();
   return (
     <div className="card narrow endgames">
-      <h1>Endgames</h1>
-      <p>
-        Endgames from your games that you were winning and did not win, or drawn endgames you lost. Play them again
-        against Stockfish: convert the win (to mate, or to a queen or rook against a bare king), or hold the draw for{' '}
-        25 moves.
-      </p>
+      <h1>{t('endgames.title')}</h1>
+      <p>{t('endgames.intro')}</p>
       {state.drills.length === 0 ? (
         <p className="muted">
-          No such endgame yet. They come from your reviewed games where your username is set in Settings.
+          {t('endgames.none')}
         </p>
       ) : (
         <ul className="drill-list">
@@ -49,11 +46,11 @@ function DrillList({ state }: { state: EndgamesState }) {
             return (
               <li key={d.id}>
                 <button className="drill" onClick={() => void startEndgameDrill(d.id)}>
-                  <span className="drill-goal">{GOAL_TEXT[d.goal]}</span>
+                  <span className="drill-goal">{t(d.goal === 'win' ? 'endgames.goal.win' : 'endgames.goal.draw')}</span>
                   <span className="drill-material">{materialText(d.fen, d.color)}</span>
                   <span className="muted small">
-                    against {g?.opponent ?? '?'}
-                    {g?.date ? ` · ${g.date}` : ''} · {Math.round(d.winBefore)}% for you
+                    {t('endgames.against', { name: g?.opponent ?? '?' })}
+                    {g?.date ? ` · ${g.date}` : ''} · {t('endgames.forYou', { pct: Math.round(d.winBefore) })}
                   </span>
                   <span className={`drill-result small ${r.cls}`}>{r.text}</span>
                 </button>
@@ -62,7 +59,7 @@ function DrillList({ state }: { state: EndgamesState }) {
           })}
         </ul>
       )}
-      <button className="link" onClick={() => setView('training')}>Back to training</button>
+      <button className="link" onClick={() => setView('training')}>{t('common.backToTraining')}</button>
     </div>
   );
 }
@@ -79,7 +76,7 @@ function Drill({ state }: { state: EndgamesState }) {
     return out;
   }, [state.hintUci, s]);
 
-  if (!s) return <p className="muted">Setting up the position…</p>;
+  if (!s) return <p className="muted">{t('endgames.setup')}</p>;
   const { drill } = s;
   const g = state.games[drill.gameId];
   const playing = s.status === 'your-move' && !state.thinking;
@@ -88,7 +85,7 @@ function Drill({ state }: { state: EndgamesState }) {
     <div className="training">
       <div className="training-board">
         <p className="muted small">
-          {materialText(s.fen, drill.color)} · against {g?.opponent ?? '?'}
+          {materialText(s.fen, drill.color)} · {t('endgames.against', { name: g?.opponent ?? '?' })}
           {g?.date ? ` (${g.date})` : ''}
         </p>
         <Board
@@ -101,17 +98,17 @@ function Drill({ state }: { state: EndgamesState }) {
       </div>
       <aside className="training-side">
         <section className="coach" aria-live="polite">
-          <h2 className="coach-title">{drill.goal === 'win' ? 'Win this endgame' : 'Hold the draw'}</h2>
+          <h2 className="coach-title">{drill.goal === 'win' ? t('endgames.winTitle') : t('endgames.goal.draw')}</h2>
           <p className="muted small">
-            In the game you played {drill.playedSan} here and the {drill.goal === 'win' ? 'win slipped away' : 'draw was lost'}.
-            You play {drill.color}; Stockfish plays the other side.
+            {t(drill.goal === 'win' ? 'endgames.story.win' : 'endgames.story.draw', { san: drill.playedSan })}{' '}
+            {t('endgames.youPlay', { side: sideLower(drill.color) })}
           </p>
           {s.line.length > 0 && <p className="coach-detail endgame-moves">{formatLine(s.line, 200)}</p>}
-          {state.thinking && <p className="coach-summary">Stockfish is thinking…</p>}
+          {state.thinking && <p className="coach-summary">{t('common.stockfishThinking')}</p>}
           {playing && (
             <p className="coach-summary">
-              Your move.{' '}
-              {drill.goal === 'draw' && s.playerMoves > 0 && <span className="muted small">{25 - s.playerMoves} moves to hold.</span>}
+              {t('common.yourMove')}{' '}
+              {drill.goal === 'draw' && s.playerMoves > 0 && <span className="muted small">{t('endgames.toHold', { count: 25 - s.playerMoves })}</span>}
             </p>
           )}
           {s.status === 'success' && <p className="coach-summary verdict-good">{s.message}</p>}
@@ -120,21 +117,21 @@ function Drill({ state }: { state: EndgamesState }) {
               <p className="coach-summary verdict-bad">{s.message}</p>
               {s.winBefore !== undefined && s.winAfter !== undefined && (
                 <p className="coach-detail">
-                  {s.reply ? `Stockfish answers ${s.reply.san}. ` : ''}
-                  Your winning chances went from {Math.round(s.winBefore)}% to {Math.round(s.winAfter)}%.
-                  {s.better ? ` ${s.better.san} was better.` : ''}
+                  {s.reply ? `${t('endgames.answers', { san: s.reply.san })} ` : ''}
+                  {t('explain.winText', { before: `${Math.round(s.winBefore)}${t('common.percent')}`, after: `${Math.round(s.winAfter)}${t('common.percent')}` })}
+                  {s.better ? ` ${t('endgames.better', { san: s.better.san })}` : ''}
                 </p>
               )}
             </>
           )}
           <div className="coach-actions">
-            {playing && <button onClick={endgameHint}>Hint</button>}
+            {playing && <button onClick={endgameHint}>{t('common.hint')}</button>}
             {s.status !== 'your-move' && (
               <button className="primary" onClick={() => void startEndgameDrill(drill.id)}>
-                Try again
+                {t('endgames.again')}
               </button>
             )}
-            <button onClick={() => void leaveEndgame()}>{s.status === 'your-move' ? 'Stop' : 'Back to the list'}</button>
+            <button onClick={() => void leaveEndgame()}>{s.status === 'your-move' ? t('common.stop') : t('endgames.backToList')}</button>
           </div>
         </section>
       </aside>

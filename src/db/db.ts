@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import Dexie, { type EntityTable } from 'dexie';
 import { epdOf } from '../core/chess';
 import type { PositionEval } from '../core/eval';
@@ -197,7 +198,7 @@ export async function importAll(json: string): Promise<number> {
     openingStats?: OpeningStat[];
     activity?: ActivityDay[];
   };
-  if (data.format !== 'chess-coach-backup') throw new Error('This file is not a Chess Coach backup.');
+  if (data.format !== 'chess-coach-backup') throw new Error(t('backup.notBackup'));
   await db.transaction('rw', [db.games, db.reviews, db.exercises, db.woodpecker, db.endgames, db.guesses, db.openingStats, db.activity], async () => {
     if (data.games) await db.games.bulkPut(data.games);
     if (data.reviews) await db.reviews.bulkPut(data.reviews);

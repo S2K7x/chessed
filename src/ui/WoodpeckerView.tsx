@@ -15,6 +15,8 @@ import {
 } from '../core/woodpecker';
 import { Board } from './Board';
 import { useBlindfold } from './Blindfold';
+import { getLocale, t } from '../i18n';
+import { sideName } from './names';
 
 const SIZES = [25, 50, 100];
 
@@ -33,7 +35,7 @@ export function WoodpeckerView() {
     if (!woodpecker) void openWoodpecker();
   }, [woodpecker, openWoodpecker]);
 
-  if (!woodpecker) return <p className="muted">Loading…</p>;
+  if (!woodpecker) return <p className="muted">{t('common.loading')}</p>;
   if (woodpecker.item && woodpecker.set) return <Solving set={woodpecker.set} item={woodpecker.item} />;
   if (woodpecker.set) return <Overview set={woodpecker.set} available={woodpecker.available} />;
   return <NewSet available={woodpecker.available} />;
@@ -41,11 +43,7 @@ export function WoodpeckerView() {
 
 function Intro() {
   return (
-    <p>
-      Solve the same set of positions from your own games again and again. Each cycle, try to go about twice as fast
-      as the last one, with as few errors as possible, so that the patterns become automatic. One try per position;
-      only the time spent on the positions counts.
-    </p>
+    <p>{t('woodpecker.intro')}</p>
   );
 }
 
@@ -67,20 +65,19 @@ function NewSet({ available }: { available: number }) {
   const { setView } = useStore.getState();
   return (
     <div className="card narrow">
-      <h1>Woodpecker</h1>
+      <h1>{t('woodpecker.title')}</h1>
       <Intro />
       {available >= WOODPECKER_MIN_SET ? (
         <>
-          <p className="muted small">Choose the size of the set (your most recent training positions).</p>
-          <SizeButtons available={available} label={(n) => (n === available ? `All ${n} positions` : `${n} positions`)} />
+          <p className="muted small">{t('woodpecker.chooseSize')}</p>
+          <SizeButtons available={available} label={(n) => (n === available ? t('woodpecker.all', { count: n }) : t('common.positions', { count: n }))} />
         </>
       ) : (
         <>
           <p className="muted">
-            You need at least {WOODPECKER_MIN_SET} training positions; you have {available}. Review more of your games: each
-            mistake becomes a position.
+            {t('woodpecker.needMore', { min: WOODPECKER_MIN_SET, count: available })}
           </p>
-          <button onClick={() => setView('home')}>Review games</button>
+          <button onClick={() => setView('home')}>{t('woodpecker.reviewGames')}</button>
         </>
       )}
     </div>
@@ -98,19 +95,18 @@ function Overview({ set, available }: { set: WoodpeckerSet; available: number })
 
   return (
     <div className="card narrow woodpecker">
-      <h1>Woodpecker</h1>
+      <h1>{t('woodpecker.title')}</h1>
       <p className="muted">
-        {set.exerciseIds.length} positions · cycle {Math.min(set.cycles.length + (cycle ? 0 : 1), WOODPECKER_MAX_CYCLES)} of up to{' '}
-        {WOODPECKER_MAX_CYCLES}
+        {t('woodpecker.overview', { count: set.exerciseIds.length, n: Math.min(set.cycles.length + (cycle ? 0 : 1), WOODPECKER_MAX_CYCLES), max: WOODPECKER_MAX_CYCLES })}
       </p>
       {set.cycles.length > 0 && (
         <table className="table">
           <thead>
             <tr>
-              <th>Cycle</th>
-              <th>Solved</th>
-              <th>Time</th>
-              <th>Finished</th>
+              <th>{t('woodpecker.col.cycle')}</th>
+              <th>{t('woodpecker.col.solved')}</th>
+              <th>{t('woodpecker.col.time')}</th>
+              <th>{t('woodpecker.col.finished')}</th>
             </tr>
           </thead>
           <tbody>
@@ -124,7 +120,7 @@ function Overview({ set, available }: { set: WoodpeckerSet; available: number })
                     {st.accuracy !== undefined ? ` (${Math.round(st.accuracy)}%)` : ''}
                   </td>
                   <td>{formatDuration(st.ms)}</td>
-                  <td>{c.finishedAt ? new Date(c.finishedAt).toLocaleDateString() : `${st.done}/${st.total} so far`}</td>
+                  <td>{c.finishedAt ? new Date(c.finishedAt).toLocaleDateString(getLocale()) : t('woodpecker.soFar', { done: st.done, total: st.total })}</td>
                 </tr>
               );
             })}
@@ -135,7 +131,7 @@ function Overview({ set, available }: { set: WoodpeckerSet; available: number })
       {cycle && (
         <div className="coach-actions">
           <button className="primary" onClick={() => void continueWoodpecker()}>
-            Continue cycle {cycle.number} ({cycle.results.length + 1} of {set.exerciseIds.length})
+            {t('woodpecker.continue', { n: cycle.number, at: cycle.results.length + 1, total: set.exerciseIds.length })}
           </button>
         </div>
       )}
@@ -145,36 +141,36 @@ function Overview({ set, available }: { set: WoodpeckerSet; available: number })
             <Intro />
           ) : (
             <p>
-              Cycle {set.cycles.length} done.{' '}
-              {target !== undefined && <>Aim for about {formatDuration(target)} in the next one, about half the time. </>}
-              {hoursSinceLast !== undefined && hoursSinceLast < 20 && 'A day of rest between cycles helps the patterns settle.'}
+              {t('woodpecker.cycleDone', { n: set.cycles.length })}{' '}
+              {target !== undefined && <>{t('woodpecker.aim', { time: formatDuration(target) })} </>}
+              {hoursSinceLast !== undefined && hoursSinceLast < 20 && t('woodpecker.rest')}
             </p>
           )}
           <div className="coach-actions">
             <button className="primary" onClick={() => void startWoodpeckerCycle()}>
-              Start cycle {set.cycles.length + 1}
+              {t('woodpecker.start', { n: set.cycles.length + 1 })}
             </button>
           </div>
         </>
       )}
       {finishedAll && (
         <p className="coach-summary verdict-good">
-          All {WOODPECKER_MAX_CYCLES} cycles done. Start a new set with your latest positions.
+          {t('woodpecker.allDone', { n: WOODPECKER_MAX_CYCLES })}
         </p>
       )}
 
       <div className="woodpecker-footer">
         {replacing ? (
           <>
-            <p className="muted small">The current set is kept in your history; the new one starts from cycle 1.</p>
-            <SizeButtons available={available} label={(n) => (n === available ? `New set: all ${n}` : `New set: ${n}`)} />
-            <button className="link" onClick={() => setReplacing(false)}>Cancel</button>
+            <p className="muted small">{t('woodpecker.replaceHelp')}</p>
+            <SizeButtons available={available} label={(n) => (n === available ? t('woodpecker.newAll', { n }) : t('woodpecker.newN', { n }))} />
+            <button className="link" onClick={() => setReplacing(false)}>{t('common.cancel')}</button>
           </>
         ) : (
           <>
-            <button className="link" onClick={() => setReplacing(true)}>Start a new set</button>
+            <button className="link" onClick={() => setReplacing(true)}>{t('woodpecker.newSet')}</button>
             {' · '}
-            <button className="link" onClick={() => setView('training')}>Back to training</button>
+            <button className="link" onClick={() => setView('training')}>{t('common.backToTraining')}</button>
           </>
         )}
       </div>
@@ -223,7 +219,7 @@ function Solving({ set, item }: { set: WoodpeckerSet; item: WoodpeckerItem }) {
     <div className="training">
       <div className="training-board">
         <p className="muted small">
-          Cycle {cycle.number} · position {position} of {set.exerciseIds.length}
+          {t('woodpecker.solving', { n: cycle.number, at: position, total: set.exerciseIds.length })}
         </p>
         <Board
           key={ex.id}
@@ -238,24 +234,24 @@ function Solving({ set, item }: { set: WoodpeckerSet; item: WoodpeckerItem }) {
       <aside className="training-side">
         <section className="coach" aria-live="polite">
           <p className="coach-kicker woodpecker-clock">
-            <span className="clock" aria-label="Cycle time">{formatDuration(elapsed)}</span>
-            {target !== undefined && <span className="muted small"> target {formatDuration(target)}</span>}
+            <span className="clock" aria-label={t('woodpecker.clock')}>{formatDuration(elapsed)}</span>
+            {target !== undefined && <span className="muted small"> {t('woodpecker.target', { time: formatDuration(target) })}</span>}
           </p>
           <h2 className="coach-title">
             {isThreat
-              ? `You played ${ex.playedSan}. How does your opponent punish it?`
-              : `${ex.color === 'white' ? 'White' : 'Black'} to play. Find the best move.`}
+              ? t('woodpecker.threatTitle', { san: ex.playedSan })
+              : t('common.toPlay', { side: sideName(ex.color) })}
           </h2>
-          <p className="muted small">From your game against {opponent}. One try.</p>
-          {item.status === 'judging' && <p className="coach-summary">Checking {item.san}…</p>}
-          {item.status === 'right' && <p className="coach-summary verdict-good">Right: {item.san}.</p>}
+          <p className="muted small">{t('woodpecker.from', { opponent })}</p>
+          {item.status === 'judging' && <p className="coach-summary">{t('woodpecker.checking', { san: item.san ?? '' })}</p>}
+          {item.status === 'right' && <p className="coach-summary verdict-good">{t('woodpecker.right', { san: item.san ?? '' })}</p>}
           {item.status === 'wrong' && (
             <>
               <p className="coach-summary verdict-bad">
-                {item.san} is not it. The answer was {ex.bestSan}.
+                {t('woodpecker.wrong', { san: item.san ?? '', best: ex.bestSan })}
               </p>
               <p className="coach-detail">
-                In the game you played {ex.playedSan}. {move.explanation.summary}
+                {t('woodpecker.inGame', { played: ex.playedSan })} {move.explanation.summary}
               </p>
             </>
           )}
@@ -263,10 +259,10 @@ function Solving({ set, item }: { set: WoodpeckerSet; item: WoodpeckerItem }) {
           <div className="coach-actions">
             {item.status === 'wrong' && (
               <button className="primary" onClick={() => void woodpeckerNext()}>
-                {cycleOver ? 'Finish the cycle' : 'Next position'}
+                {cycleOver ? t('woodpecker.finishCycle') : t('common.nextPosition')}
               </button>
             )}
-            <button onClick={pauseWoodpecker}>Pause</button>
+            <button onClick={pauseWoodpecker}>{t('common.pause')}</button>
           </div>
         </section>
       </aside>

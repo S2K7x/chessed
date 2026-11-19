@@ -13,6 +13,8 @@ import { formatClock } from '../core/review';
 import type { Game } from '../core/game';
 import { Icon } from './icons';
 import { ExplorePanel } from './ExplorePanel';
+import { t } from '../i18n';
+import { sideName, speedName } from './names';
 
 export function ReviewView() {
   const { game, review, cursor, orientation, lineView, retry, liveWins, myColor, playout, hintsShown, showThreats, threats, explore, explorations } = useStore();
@@ -150,31 +152,31 @@ export function ReviewView() {
 
   return (
     <div className="review">
-      <nav className="review-tools" aria-label="Tools">
+      <nav className="review-tools" aria-label={t('review.tools')}>
         <button className="tool" onClick={() => setView('home')}>
           <Icon name="plus" />
-          New game
+          {t('review.newGame')}
         </button>
         <button className="tool" onClick={() => setView('settings')}>
           <Icon name="settings" />
-          Settings
+          {t('nav.settings')}
         </button>
-        <button className="tool" onClick={flip} title="Flip board (f)">
+        <button className="tool" onClick={flip} title={t('review.flipTitle')}>
           <Icon name="flip" />
           <span>
-            Flip board<kbd aria-hidden="true">F</kbd>
+            {t('review.flip')}<kbd aria-hidden="true">F</kbd>
           </span>
         </button>
-        <button className="tool" onClick={toggleThreats} aria-pressed={showThreats} title="What does the opponent threaten? (x)">
+        <button className="tool" onClick={toggleThreats} aria-pressed={showThreats} title={t('review.threatTitle')}>
           <Icon name="threat" />
           <span>
-            Threat<kbd aria-hidden="true">X</kbd>
+            {t('review.threat')}<kbd aria-hidden="true">X</kbd>
           </span>
         </button>
         {review && (
-          <button className="tool" onClick={exportAnnotatedPgn} aria-label="Share game (annotated PGN)">
+          <button className="tool" onClick={exportAnnotatedPgn} aria-label={t('review.shareLabel')}>
             <Icon name="share" />
-            Share game
+            {t('review.share')}
           </button>
         )}
       </nav>
@@ -186,19 +188,19 @@ export function ReviewView() {
         </div>
         {'interactive' in board && board.interactive && <MoveInput fen={board.fen} onMove={onMove} />}
         <PlayerStrip game={game} color={bottomColor} cursor={cursor} accuracy={review?.accuracy[bottomColor]} isMe={myColor === bottomColor} />
-        <div className="board-controls" role="toolbar" aria-label="Navigation">
-          <button onClick={() => goTo(0)} aria-label="First position"><Icon name="first" /></button>
-          <button onClick={() => step(-1)} aria-label="Previous move"><Icon name="prev" /></button>
-          <button onClick={() => step(1)} aria-label="Next move"><Icon name="next" /></button>
-          <button onClick={() => goTo(Number.MAX_SAFE_INTEGER)} aria-label="Last position"><Icon name="last" /></button>
+        <div className="board-controls" role="toolbar" aria-label={t('review.navigation')}>
+          <button onClick={() => goTo(0)} aria-label={t('review.first')}><Icon name="first" /></button>
+          <button onClick={() => step(-1)} aria-label={t('review.prev')}><Icon name="prev" /></button>
+          <button onClick={() => step(1)} aria-label={t('review.next')}><Icon name="next" /></button>
+          <button onClick={() => goTo(Number.MAX_SAFE_INTEGER)} aria-label={t('review.last')}><Icon name="last" /></button>
         </div>
         {atEnd && <ResultBanner game={game} />}
         {threatFen && (
           <p className="threat-line" role="status">
             {!threat || threat === 'loading'
-              ? 'Looking for threats…'
+              ? t('review.threatLoading')
               : threat === 'none-in-check'
-                ? 'The side to move is in check: deal with it first.'
+                ? t('review.inCheck')
                 : 'error' in threat
                   ? threat.error
                   : describeThreat(threat)}
@@ -228,23 +230,23 @@ function clockAt(game: Game, color: 'white' | 'black', cursor: number): number |
 function PlayerStrip({ game, color, cursor, accuracy, isMe }: { game: Game; color: 'white' | 'black'; cursor: number; accuracy?: number; isMe: boolean }) {
   const p = color === 'white' ? game.white : game.black;
   const clock = clockAt(game, color, cursor);
-  const meta = [p.elo ? String(p.elo) : undefined, isMe ? 'you' : undefined].filter(Boolean).join(' · ');
+  const meta = [p.elo ? String(p.elo) : undefined, isMe ? t('review.you') : undefined].filter(Boolean).join(' · ');
   return (
     <div className="player">
       <span className={`player-avatar is-${color}`} aria-hidden>
         {p.name.trim().charAt(0).toUpperCase() || '?'}
       </span>
-      <span className="player-big" aria-label={clock !== undefined ? 'Clock' : 'Accuracy'}>
+      <span className="player-big" aria-label={clock !== undefined ? t('review.clock') : t('review.accuracy')}>
         {clock !== undefined ? formatClock(clock) : accuracy !== undefined ? accuracy.toFixed(1) : '–'}
       </span>
       <span className="player-info">
         <span className="player-name">{p.name}</span>
-        <span className="player-meta">{meta || (color === 'white' ? 'White' : 'Black')}</span>
+        <span className="player-meta">{meta || sideName(color)}</span>
       </span>
       {clock !== undefined && accuracy !== undefined && (
         <span className="player-acc">
           <strong>{accuracy.toFixed(1)}</strong>
-          <small>accuracy</small>
+          <small>{t('common.accuracy')}</small>
         </span>
       )}
     </div>
@@ -257,15 +259,15 @@ function ResultBanner({ game }: { game: Game }) {
   const terminal = last ? terminalOf(positionFromFen(last.fenAfter)) : undefined;
   const text =
     terminal === 'checkmate'
-      ? 'Checkmate!'
+      ? t('result.checkmate')
       : terminal === 'stalemate'
-        ? 'Stalemate'
+        ? t('result.stalemate')
         : game.result === '1-0'
-          ? 'White wins'
+          ? t('result.whiteWins')
           : game.result === '0-1'
-            ? 'Black wins'
+            ? t('result.blackWins')
             : game.result === '1/2-1/2'
-              ? 'Draw'
+              ? t('result.draw')
               : undefined;
   return text ? <p className="result-banner display">{text}</p> : null;
 }
@@ -274,12 +276,12 @@ function GameHeader() {
   const { game, review } = useStore();
   const { exportAnnotatedPgn } = useStore.getState();
   if (!game) return null;
-  const bits = [game.result, game.timeControl?.speed, game.date, game.source !== 'pgn' ? game.source === 'lichess' ? 'Lichess' : 'Chess.com' : undefined].filter(Boolean);
+  const bits = [game.result, game.timeControl?.speed ? speedName(game.timeControl.speed) : undefined, game.date, game.source !== 'pgn' ? game.source === 'lichess' ? 'Lichess' : 'Chess.com' : undefined].filter(Boolean);
   const opening = review?.opening?.name ?? game.openingName;
   return (
     <header className="game-header">
       <h1 className="game-title">
-        {game.white.name} <span className="muted">vs</span> {game.black.name}
+        {game.white.name} <span className="muted">{t('common.vs')}</span> {game.black.name}
       </h1>
       <p className="muted">
         {bits.join(' · ')}
@@ -287,13 +289,13 @@ function GameHeader() {
         {game.sourceUrl ? (
           <>
             {' · '}
-            <a href={game.sourceUrl} target="_blank" rel="noreferrer">source</a>
+            <a href={game.sourceUrl} target="_blank" rel="noreferrer">{t('review.source')}</a>
           </>
         ) : null}
         {review ? (
           <>
             {' · '}
-            <button className="link" onClick={exportAnnotatedPgn}>Export annotated PGN</button>
+            <button className="link" onClick={exportAnnotatedPgn}>{t('review.export')}</button>
           </>
         ) : null}
       </p>

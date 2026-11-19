@@ -4,6 +4,7 @@ import type { Color } from '../eval';
 import type { Fact, PieceAt } from '../facts';
 import type { Motif } from '../facts/motifs';
 import type { PositionalTheme } from '../facts/positional';
+import { cap, list, t } from '../../i18n';
 
 /**
  * Template explanations. Every piece, square and move mentioned here comes
@@ -51,76 +52,42 @@ export interface ExplainInput {
   openingName?: string;
 }
 
-export const CLASS_LABELS: Record<Classification, string> = {
-  brilliant: 'Brilliant',
-  great: 'Great move',
-  best: 'Best move',
-  excellent: 'Excellent',
-  good: 'Good',
-  book: 'Book move',
-  forced: 'Forced',
-  inaccuracy: 'Inaccuracy',
-  mistake: 'Mistake',
-  miss: 'Missed opportunity',
-  blunder: 'Blunder',
-};
+/** The name of a classification in the current language. */
+export const classLabel = (c: Classification): string => t(`class.${c}`);
 
-const LESSONS = {
-  moved_piece_unsafe:
-    'Before you move a piece, count how many times its new square is attacked and defended.',
-  piece_left_hanging:
-    'Start every move by listing your pieces that are attacked. An under-defended piece comes first.',
-  removed_defender:
-    'Before moving a piece, check what it was protecting. Defenders have jobs.',
-  fork_allowed:
-    'Look for squares where an enemy knight, pawn or queen could attack two of your pieces at once, especially your king and queen.',
-  combination_lost:
-    "Before each move, look at your opponent's checks, captures and threats in reply.",
-  mate_allowed:
-    'When your king has few escape squares, check every enemy check before you move.',
-  mate_missed: 'Checks, captures, threats: look at all your checks first, every move.',
-  free_capture: 'Look at every capture available to you. A piece attacked more often than it is defended can be won.',
-  fork_missed: 'Look for moves that attack two targets at once: a fork wins material because only one can be saved.',
-  skewer_allowed: 'Keep your king and queen off open lines where an enemy rook or bishop can attack them with another piece behind.',
-  skewer_missed: 'When an enemy king or queen stands in front of another piece on a line, look for a skewer.',
-  discovered_attack_allowed: 'Watch enemy pieces lined up with your king or queen behind another enemy piece: when that piece moves, the line opens.',
-  discovered_attack_missed: 'When one of your pieces blocks the line of your rook, bishop or queen, look at what moving it would uncover.',
-  double_check_allowed: 'A double check can only be answered by moving the king. Keep your king away from lines that two enemy pieces can open at once.',
-  double_check_missed: 'Look for moves that give check with two pieces at once: the opponent can only move the king.',
-  pin: 'A piece pinned to the king cannot move. Before playing, check whether any of your pieces is pinned and attacked.',
-  back_rank: 'Give your king an escape square (for example by playing h3 or g3) when your back rank is weak.',
-  smothered: 'When your own pieces fill every square around your king, a single knight check can be mate: keep a flight square, and watch knight checks.',
-  endgame: 'In the endgame, slow down and check every move: one tempo often decides the result.',
-  combination_missed:
-    'When your pieces are active, search for forcing moves (checks and captures) before quiet ones.',
-  eval_drop:
-    "Compare your move with the engine's: ask what the better move improves, such as a piece, your king's safety or the pawn structure.",
-  miss: "After your opponent's mistake, slow down: there is usually a concrete way to punish it.",
-} as const;
+type LessonId =
+  | 'moved_piece_unsafe' | 'piece_left_hanging' | 'removed_defender' | 'fork_allowed' | 'combination_lost' | 'mate_allowed'
+  | 'mate_missed' | 'free_capture' | 'fork_missed' | 'skewer_allowed' | 'skewer_missed' | 'discovered_attack_allowed'
+  | 'discovered_attack_missed' | 'double_check_allowed' | 'double_check_missed' | 'pin' | 'back_rank' | 'smothered'
+  | 'endgame' | 'combination_missed' | 'eval_drop' | 'miss';
+const lesson = (id: LessonId): string => t(`lesson.${id}`);
 
-export const pieceLabel = (p: PieceAt): string => `${p.role} on ${p.square}`;
+/** "knight on f3", "the knight on f3", "your knight on f3" (with the right article in each language). */
+export const pieceLabel = (p: PieceAt): string => t(`piece.bare.${p.role}`, { square: p.square });
+const theP = (p: PieceAt): string => t(`piece.the.${p.role}`, { square: p.square });
+const yourP = (p: PieceAt): string => t(`piece.your.${p.role}`, { square: p.square });
 
 /** One sentence describing a tactical pattern, from the side that plays it ("your" = the victim when `against` is true). */
 function patternSentence(m: Motif, moveSan: string, against: boolean): string {
-  const their = against ? 'your' : 'the';
+  const target = against ? yourP : theP;
   switch (m.kind) {
     case 'double_check':
-      return `${moveSan} is a double check: the king has to move, so nothing else can be saved.`;
+      return t('explain.pattern.doubleCheck', { move: moveSan });
     case 'discovered_attack':
-      return `${moveSan} moves the ${pieceLabel(m.moved)} out of the way, and the ${pieceLabel(m.attacker)} suddenly attacks ${their} ${pieceLabel(m.target)}: a discovered attack.`;
+      return t('explain.pattern.discovered', { move: moveSan, moved: theP(m.moved), attacker: theP(m.attacker), target: target(m.target) });
     case 'fork':
-      return `${moveSan} is a fork: the ${pieceLabel(m.by)} attacks ${their} ${listTargets(m.targets)} at the same time.`;
+      return t('explain.pattern.fork', { move: moveSan, by: theP(m.by), targets: listTargets(m.targets, target) });
     case 'skewer':
-      return `${moveSan} is a skewer: the ${pieceLabel(m.by)} attacks ${their} ${pieceLabel(m.front)}, and when it moves, the ${pieceLabel(m.behind)} behind it falls.`;
+      return t('explain.pattern.skewer', { move: moveSan, by: theP(m.by), front: target(m.front), behind: theP(m.behind) });
   }
 }
 
-const pct = (x: number) => `${Math.round(x)}%`;
+const pct = (x: number) => `${Math.round(x)}${t('common.percent')}`;
 
-function listTargets(targets: PieceAt[]): string {
-  const names = targets.map(pieceLabel);
-  if (names.length <= 1) return names.join('');
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+/** "your king on g1 and queen on d1" (English) or "votre roi en g1 et votre dame en d1" (French). */
+function listTargets(targets: PieceAt[], withArticle: (p: PieceAt) => string): string {
+  const repeat = t('grammar.repeatArticle') === 'yes';
+  return list(targets.map((p, i) => (i === 0 || repeat ? withArticle(p) : pieceLabel(p))));
 }
 
 /** "13. Nf3+ Kh1 14. Nxd2" from a line and its starting position. */
@@ -144,56 +111,52 @@ const isGoodClass = (c: Classification) =>
 export function explainMove(input: ExplainInput): Explanation {
   const { assessment: a, san, facts, bestLine } = input;
   const c = a.classification;
-  const label = CLASS_LABELS[c];
-  const title = `${input.moveLabel} ${san}: ${label}`;
+  const title = t('explain.title', { label: input.moveLabel, san, cls: classLabel(c) });
   const best = bestLine[0];
-  const winText = `Your winning chances went from ${pct(a.winBefore)} to ${pct(a.winAfter)}.`;
+  const winText = t('explain.winText', { before: pct(a.winBefore), after: pct(a.winAfter) });
   const lines: PlayableLine[] = [];
   const arrows: Arrow[] = [];
+  const bestLineLabel = (s: string) => t('explain.line.best', { san: s });
 
   if (isGoodClass(c)) {
     let summary: string;
     const details: string[] = [];
     switch (c) {
       case 'book':
-        summary = input.openingName ? `A known opening move (${input.openingName}).` : 'A known opening move.';
+        summary = input.openingName ? t('explain.book.named', { opening: input.openingName }) : t('explain.book');
         break;
       case 'forced':
-        summary = 'The only legal move.';
+        summary = t('explain.forced');
         break;
       case 'brilliant': {
         const sac = a.sacrifice;
-        summary = sac
-          ? `A sound sacrifice: your ${pieceLabel(sac.piece)} can be taken, and that is fine.`
-          : 'A sound sacrifice.';
-        if (sac) details.push(`Taking it wins about ${sac.investment} points of material for your opponent, yet your winning chances stay at ${pct(a.winAfter)}.`);
+        summary = sac ? t('explain.brilliant.piece', { piece: yourP(sac.piece) }) : t('explain.brilliant');
+        if (sac) details.push(t('explain.brilliant.detail', { count: sac.investment, after: pct(a.winAfter) }));
         break;
       }
       case 'great':
-        summary = 'The only good move in the position.';
-        if (a.secondBestLoss !== undefined) {
-          details.push(`Every alternative was clearly worse: the next best move would have cost ${pct(a.secondBestLoss)} of your winning chances.`);
-        }
+        summary = t('explain.great');
+        if (a.secondBestLoss !== undefined) details.push(t('explain.great.detail', { loss: pct(a.secondBestLoss) }));
         break;
       case 'best':
-        summary = "The engine's top choice.";
+        summary = t('explain.best');
         break;
       case 'excellent':
-        summary = 'Almost as strong as the best move.';
+        summary = t('explain.excellent');
         break;
       default:
-        summary = 'A reasonable move, slightly weaker than the best.';
+        summary = t('explain.good');
     }
     if ((c === 'excellent' || c === 'good') && best && best.san !== san) {
-      details.push(`The engine preferred ${best.san}.`);
-      lines.push({ label: `Best line: ${best.san}`, fen: input.fenBefore, moves: bestLine.slice(0, 8) });
+      details.push(t('explain.preferred', { san: best.san }));
+      lines.push({ label: bestLineLabel(best.san), fen: input.fenBefore, moves: bestLine.slice(0, 8) });
       arrows.push(...arrowOf(best, 'best'));
     }
     if ((c === 'brilliant' || c === 'great') && bestLine.length > 1) {
-      lines.push({ label: 'Why it works', fen: input.fenBefore, moves: bestLine.slice(0, 8) });
+      lines.push({ label: t('explain.line.why'), fen: input.fenBefore, moves: bestLine.slice(0, 8) });
     }
     const out: Explanation = { title, summary, details, lines, arrows };
-    if (c === 'good' && best) out.better = { san: best.san, text: `${best.san} kept a little more.` };
+    if (c === 'good' && best) out.better = { san: best.san, text: t('explain.better.little', { san: best.san }) };
     return out;
   }
 
@@ -201,225 +164,199 @@ export function explainMove(input: ExplainInput): Explanation {
   const fact = facts[0];
   const details: string[] = [];
   let summary = winText;
-  let lesson: string = LESSONS.eval_drop;
+  let lessonText: string = lesson('eval_drop');
 
   if (fact) {
     switch (fact.kind) {
       case 'endgame_thrown': {
         summary =
           fact.from === 'win'
-            ? `This throws away a won endgame: the result is now ${fact.to === 'draw' ? 'a draw' : 'a loss'} with best play.`
-            : 'This turns a drawn endgame into a lost one.';
-        details.push('With seven pieces or fewer, the tablebase knows the exact result of every position.');
-        if (fact.bestLine[0]) details.push(`${fact.bestLine[0].san} kept the ${fact.from}.`);
-        lesson = LESSONS.endgame;
+            ? t(fact.to === 'draw' ? 'explain.endgame.winToDraw' : 'explain.endgame.winToLoss')
+            : t('explain.endgame.drawToLoss');
+        details.push(t('explain.endgame.tablebase'));
+        if (fact.bestLine[0]) details.push(t(fact.from === 'win' ? 'explain.endgame.keptWin' : 'explain.endgame.keptDraw', { san: fact.bestLine[0].san }));
+        lessonText = lesson('endgame');
         break;
       }
       case 'mate_allowed': {
-        summary = `This allows a forced checkmate in ${fact.mateIn}${fact.backRank ? ' on your back rank' : fact.pattern ? ` (${PATTERN_NAMES[fact.pattern]})` : ''}.`;
-        if (fact.backRank) lesson = LESSONS.back_rank;
-        details.push(`Your opponent forces it: ${formatLine(fact.line)}.`);
-        lines.push({ label: 'The mating line', fen: input.fenAfter, moves: fact.line });
+        summary = fact.backRank
+          ? t('explain.mateAllowed.backRank', { n: fact.mateIn })
+          : fact.pattern
+            ? t('explain.mateAllowed.pattern', { n: fact.mateIn, pattern: t(`mate.${fact.pattern}`) })
+            : t('explain.mateAllowed', { n: fact.mateIn });
+        details.push(t('explain.mateAllowed.detail', { line: formatLine(fact.line) }));
+        lines.push({ label: t('explain.line.mating'), fen: input.fenAfter, moves: fact.line });
         arrows.push(...arrowOf(fact.line[0], 'threat'));
-        if (!fact.backRank) lesson = fact.pattern === 'smothered' ? LESSONS.smothered : LESSONS.mate_allowed;
+        lessonText = fact.backRank ? lesson('back_rank') : fact.pattern === 'smothered' ? lesson('smothered') : lesson('mate_allowed');
         break;
       }
       case 'mate_missed': {
-        summary = `You had a forced checkmate in ${fact.mateIn}${fact.backRank ? ' on the back rank' : fact.pattern ? ` (${PATTERN_NAMES[fact.pattern]})` : ''}.`;
-        details.push(`${formatLine(fact.line)} would have ended the game.`);
-        lines.push({ label: 'The missed mate', fen: input.fenBefore, moves: fact.line });
+        summary = fact.backRank
+          ? t('explain.mateMissed.backRank', { n: fact.mateIn })
+          : fact.pattern
+            ? t('explain.mateMissed.pattern', { n: fact.mateIn, pattern: t(`mate.${fact.pattern}`) })
+            : t('explain.mateMissed', { n: fact.mateIn });
+        details.push(t('explain.mateMissed.detail', { line: formatLine(fact.line) }));
+        lines.push({ label: t('explain.line.missedMate'), fen: input.fenBefore, moves: fact.line });
         arrows.push(...arrowOf(fact.line[0], 'best'));
-        lesson = LESSONS.mate_missed;
+        lessonText = lesson('mate_missed');
         break;
       }
       case 'material_lost': {
         const reply = fact.line[0];
-        const what = fact.piece ? `your ${pieceLabel(fact.piece)}` : 'material';
+        const what = fact.piece ? yourP(fact.piece) : t('explain.material');
         switch (fact.motif) {
           case 'moved_piece_unsafe':
-            summary = `${san} puts ${what} on a square where it can be taken.`;
-            lesson = LESSONS.moved_piece_unsafe;
+            summary = t('explain.lost.unsafe', { san, what });
+            lessonText = lesson('moved_piece_unsafe');
             break;
           case 'piece_left_hanging':
-            summary = `${san} leaves ${what} under-defended, and your opponent can win it.`;
-            lesson = LESSONS.piece_left_hanging;
+            summary = t('explain.lost.hanging', { san, what });
+            lessonText = lesson('piece_left_hanging');
             break;
           case 'removed_defender':
             summary = fact.defender
-              ? `Your ${pieceLabel(fact.defender)} was protecting ${what}; after ${san} it is no longer defended.`
-              : `${san} removes a defender of ${what}.`;
-            lesson = LESSONS.removed_defender;
+              ? t('explain.lost.defender', { san, what, defender: cap(yourP(fact.defender)) })
+              : t('explain.lost.defenderAny', { san, what });
+            lessonText = lesson('removed_defender');
             break;
           case 'pin':
-            summary = `${san} lets your opponent win ${what}: it is pinned to your king and cannot escape.`;
-            lesson = LESSONS.pin;
+            summary = t('explain.lost.pin', { san, what });
+            lessonText = lesson('pin');
             break;
           case 'fork':
           case 'skewer':
           case 'discovered_attack':
           case 'double_check':
-            summary = fact.pattern && reply ? `${san} allows ${patternSentence(fact.pattern, reply.san, true)}` : `${san} allows a ${fact.motif.replace('_', ' ')}.`;
-            lesson = LESSONS[`${fact.motif}_allowed`];
+            summary =
+              fact.pattern && reply
+                ? t('explain.lost.pattern', { san, sentence: patternSentence(fact.pattern, reply.san, true) })
+                : t('explain.lost.motif', { san, motif: t(`motif.${fact.motif}`) });
+            lessonText = lesson(`${fact.motif}_allowed`);
             break;
           default:
-            summary = `${san} allows a combination that wins ${what}.`;
-            lesson = LESSONS.combination_lost;
+            summary = t('explain.lost.combination', { san, what });
+            lessonText = lesson('combination_lost');
         }
-        details.push(`Your opponent's best reply: ${formatLine(fact.line)}, and you are down about ${fact.amount} point${fact.amount > 1 ? 's' : ''} of material.`);
-        lines.push({ label: 'What your opponent threatens', fen: input.fenAfter, moves: fact.line });
+        details.push(t('explain.lost.detail', { line: formatLine(fact.line), count: fact.amount }));
+        lines.push({ label: t('explain.line.threat'), fen: input.fenAfter, moves: fact.line });
         arrows.push(...arrowOf(reply, 'threat'));
         break;
       }
       case 'missed_material': {
         const first = fact.line[0];
+        const firstSan = first?.san ?? '';
         switch (fact.motif) {
           case 'free_capture':
             summary = fact.piece
-              ? `You could have won the ${pieceLabel(fact.piece)} with ${first?.san}.`
-              : `You could have won material with ${first?.san}.`;
-            lesson = LESSONS.free_capture;
+              ? t('explain.missed.piece', { piece: theP(fact.piece), san: firstSan })
+              : t('explain.missed.material', { san: firstSan });
+            lessonText = lesson('free_capture');
             break;
           case 'fork':
           case 'skewer':
           case 'discovered_attack':
           case 'double_check':
-            summary = fact.pattern && first ? `You missed ${patternSentence(fact.pattern, first.san, false)}` : `You missed a ${fact.motif.replace('_', ' ')}.`;
-            lesson = LESSONS[`${fact.motif}_missed`];
+            summary =
+              fact.pattern && first
+                ? t('explain.missed.pattern', { sentence: patternSentence(fact.pattern, first.san, false) })
+                : t('explain.missed.motif', { motif: t(`motif.${fact.motif}`) });
+            lessonText = lesson(`${fact.motif}_missed`);
             break;
           default:
-            summary = `${first?.san} started a sequence that wins material.`;
-            lesson = LESSONS.combination_missed;
+            summary = t('explain.missed.sequence', { san: firstSan });
+            lessonText = lesson('combination_missed');
         }
-        details.push(`${formatLine(fact.line)} wins about ${fact.amount} point${fact.amount > 1 ? 's' : ''} of material.`);
-        lines.push({ label: 'The missed line', fen: input.fenBefore, moves: fact.line });
+        details.push(t('explain.missed.detail', { line: formatLine(fact.line), count: fact.amount }));
+        lines.push({ label: t('explain.line.missed'), fen: input.fenBefore, moves: fact.line });
         arrows.push(...arrowOf(first, 'best'));
         break;
       }
       case 'positional': {
-        const t = POSITIONAL[fact.theme];
-        summary = t.summary(san, fact.squares, fact.bestDevelops);
-        lesson = t.lesson;
+        summary = positionalSummary(fact.theme, san, fact.squares, fact.bestDevelops);
+        lessonText = t(`positional.${fact.theme}.lesson`);
         const drop = facts.find((f) => f.kind === 'eval_drop');
         if (drop?.kind === 'eval_drop' && drop.line.length > 0) {
-          details.push(`The engine expects ${formatLine(drop.line, 6)}.`);
-          lines.push({ label: "The engine's continuation", fen: input.fenAfter, moves: drop.line });
+          details.push(t('explain.expects', { line: formatLine(drop.line, 6) }));
+          lines.push({ label: t('explain.line.engine'), fen: input.fenAfter, moves: drop.line });
         }
         break;
       }
       case 'eval_drop': {
-        summary = `${san} does not lose material right away, but it worsens your position. ${winText}`;
+        summary = t('explain.evalDrop', { san, win: winText });
         if (fact.line.length > 0) {
-          details.push(`The engine expects ${formatLine(fact.line, 6)}.`);
-          lines.push({ label: "The engine's continuation", fen: input.fenAfter, moves: fact.line });
+          details.push(t('explain.expects', { line: formatLine(fact.line, 6) }));
+          lines.push({ label: t('explain.line.engine'), fen: input.fenAfter, moves: fact.line });
         }
-        lesson = LESSONS.eval_drop;
+        lessonText = lesson('eval_drop');
         break;
       }
     }
   }
-  if (facts.some((f) => f.kind === 'castling_lost')) {
-    details.push('Moving your king also gave up the right to castle.');
-  }
+  if (facts.some((f) => f.kind === 'castling_lost')) details.push(t('explain.castlingLost'));
   if (c === 'miss') {
-    details.unshift("Your opponent's previous move was an error, and this move lets the advantage slip.");
-    lesson = LESSONS.miss;
+    details.unshift(t('explain.miss'));
+    lessonText = lesson('miss');
   }
   if (fact?.kind !== 'mate_allowed' && fact?.kind !== 'eval_drop') details.push(winText);
   for (const extra of facts.slice(1)) {
-    if (extra.kind === 'positional' && extra !== fact) details.push(POSITIONAL[extra.theme].summary(san, extra.squares, extra.bestDevelops));
+    if (extra.kind === 'positional' && extra !== fact) details.push(positionalSummary(extra.theme, san, extra.squares, extra.bestDevelops));
   }
 
-  const out: Explanation = { title, summary, details, lines, arrows, lesson };
+  const out: Explanation = { title, summary, details, lines, arrows, lesson: lessonText };
   arrows.push({ from: input.uci.slice(0, 2), to: input.uci.slice(2, 4), brush: 'played' });
   if (best && best.san !== san) {
     out.better = { san: best.san, text: betterText(best.san, facts, a) };
     if (!lines.some((l) => l.fen === input.fenBefore)) {
-      lines.push({ label: `Best line: ${best.san}`, fen: input.fenBefore, moves: bestLine.slice(0, 8) });
+      lines.push({ label: bestLineLabel(best.san), fen: input.fenBefore, moves: bestLine.slice(0, 8) });
     }
     if (!arrows.some((x) => x.brush === 'best')) arrows.push(...arrowOf(best, 'best'));
   }
   return out;
 }
 
-const listSquares = (sq: string[]) => (sq.length <= 1 ? sq.join('') : `${sq.slice(0, -1).join(', ')} and ${sq[sq.length - 1]}`);
-
-const POSITIONAL: Record<PositionalTheme, { summary: (san: string, squares: string[], bestDevelops?: string) => string; lesson: string }> = {
-  isolated_pawn: {
-    summary: (san, sq) => `${san} leaves an isolated pawn on ${listSquares(sq)}: no pawn on a neighbouring file can protect it.`,
-    lesson: 'Isolated pawns need pieces to defend them. Avoid creating one unless you get activity in return.',
-  },
-  doubled_pawns: {
-    summary: (san, sq) => `${san} doubles your pawns (${listSquares(sq)}): they cannot protect each other.`,
-    lesson: 'Doubled pawns are a long-term weakness. Accept them only for open lines or a strong centre.',
-  },
-  passed_pawn_allowed: {
-    summary: (san, sq) => `After ${san} your opponent has a passed pawn on ${listSquares(sq)}: nothing can stop it with a pawn any more.`,
-    lesson: 'Passed pawns grow stronger as pieces come off. Keep your pawns where they can stop enemy pawns.',
-  },
-  king_shelter: {
-    summary: (san, sq) => `${san} moves a pawn away from your king on ${sq[1]}, opening lines towards it.`,
-    lesson: 'The pawns in front of your castled king are its shield. Move them only for a clear reason.',
-  },
-  knight_rim: {
-    summary: (san, sq) => `${san} puts the knight on the edge (${sq[0]}), where it controls few squares.`,
-    lesson: 'A knight on the rim is dim: knights are strongest in the centre.',
-  },
-  early_queen: {
-    summary: (san, _sq, best) =>
-      `${san} brings the queen out early while your minor pieces are still at home${best ? `; ${best} develops a piece instead` : ''}.`,
-    lesson: 'In the opening, develop knights and bishops first. An early queen can be chased with gain of time.',
-  },
-  undeveloped: {
-    summary: (san, _sq, best) => `${san} spends a move while pieces are still at home${best ? `; ${best} develops one` : ''}.`,
-    lesson: 'In the opening, every move should bring a new piece into play or fight for the centre.',
-  },
-};
+function positionalSummary(theme: PositionalTheme, san: string, squares: string[], bestDevelops?: string): string {
+  const sq = list(squares);
+  switch (theme) {
+    case 'king_shelter':
+      return t('positional.king_shelter.summary', { san, squares: squares[1] ?? '' });
+    case 'knight_rim':
+      return t('positional.knight_rim.summary', { san, squares: squares[0] ?? '' });
+    case 'early_queen':
+      return bestDevelops ? t('positional.early_queen.summaryBest', { san, best: bestDevelops }) : t('positional.early_queen.summary', { san });
+    case 'undeveloped':
+      return bestDevelops ? t('positional.undeveloped.summaryBest', { san, best: bestDevelops }) : t('positional.undeveloped.summary', { san });
+    default:
+      return t(`positional.${theme}.summary`, { san, squares: sq });
+  }
+}
 
 function betterText(bestSan: string, facts: Fact[], a: Assessment): string {
   const missed = facts.find((f) => f.kind === 'missed_material' || f.kind === 'mate_missed');
-  if (missed?.kind === 'mate_missed') return `It starts a forced mate.`;
-  if (missed?.kind === 'missed_material') return `It wins material.`;
-  return `With ${bestSan} your winning chances stay around ${pct(a.winBefore)}, instead of ${pct(a.winAfter)}.`;
+  if (missed?.kind === 'mate_missed') return t('explain.better.mate');
+  if (missed?.kind === 'missed_material') return t('explain.better.material');
+  return t('explain.better.chances', { san: bestSan, before: pct(a.winBefore), after: pct(a.winAfter) });
 }
 
-/** Short definitions shown to beginners next to an explanation. */
-/** Names of the mate patterns, as written in explanations. */
-export const PATTERN_NAMES = { smothered: 'a smothered mate', arabian: 'an Arabian mate' } as const;
+type GlossaryTerm =
+  | 'fork' | 'pin' | 'skewer' | 'discovered_attack' | 'double_check' | 'back_rank' | 'smothered' | 'arabian'
+  | 'passed_pawn' | 'isolated_pawn' | 'doubled_pawns' | 'tablebase';
 
-export const GLOSSARY: Record<string, string> = {
-  fork: 'Fork: one piece attacks two enemy pieces at once; only one can be saved.',
-  pin: 'Pin: a piece cannot move because a more valuable piece (often the king) stands behind it.',
-  skewer: 'Skewer: a valuable piece is attacked and, when it moves, the piece behind it is lost.',
-  'discovered attack': 'Discovered attack: moving one piece uncovers an attack by another piece behind it.',
-  'double check': 'Double check: two pieces give check at once; only a king move can answer it.',
-  'back rank': 'Back-rank mate: a rook or queen mates a king stuck behind its own pawns on the first or last rank.',
-  'smothered mate': 'Smothered mate: a knight mates a king whose every neighbouring square is taken by its own pieces.',
-  'Arabian mate': 'Arabian mate: a rook next to a king in the corner, protected by a knight, which also covers the escape square.',
-  'passed pawn': 'Passed pawn: a pawn with no enemy pawn in front of it or on the files next to it.',
-  'isolated pawn': 'Isolated pawn: a pawn with no friendly pawn on the files next to it.',
-  'doubled pawns': 'Doubled pawns: two pawns of the same colour on one file.',
-  tablebase: 'Tablebase: a database with the exact result of every endgame with seven pieces or fewer.',
-};
-
-/** Glossary entries relevant to these facts. */
+/** Short definitions shown to beginners next to an explanation: the entries relevant to these facts. */
 export function glossaryFor(facts: Fact[]): string[] {
-  const terms = new Set<string>();
+  const terms = new Set<GlossaryTerm>();
   for (const f of facts) {
     if (f.kind === 'material_lost' || f.kind === 'missed_material') {
-      if (f.motif === 'fork') terms.add('fork');
-      if (f.motif === 'pin') terms.add('pin');
-      if (f.motif === 'skewer') terms.add('skewer');
-      if (f.motif === 'discovered_attack') terms.add('discovered attack');
-      if (f.motif === 'double_check') terms.add('double check');
+      if (f.motif === 'fork' || f.motif === 'pin' || f.motif === 'skewer' || f.motif === 'discovered_attack' || f.motif === 'double_check') terms.add(f.motif);
     }
-    if ((f.kind === 'mate_allowed' || f.kind === 'mate_missed') && f.backRank) terms.add('back rank');
-    if ((f.kind === 'mate_allowed' || f.kind === 'mate_missed') && f.pattern) terms.add(f.pattern === 'smothered' ? 'smothered mate' : 'Arabian mate');
+    if ((f.kind === 'mate_allowed' || f.kind === 'mate_missed') && f.backRank) terms.add('back_rank');
+    if ((f.kind === 'mate_allowed' || f.kind === 'mate_missed') && f.pattern) terms.add(f.pattern);
     if (f.kind === 'endgame_thrown') terms.add('tablebase');
     if (f.kind === 'positional') {
-      if (f.theme === 'passed_pawn_allowed') terms.add('passed pawn');
-      if (f.theme === 'isolated_pawn') terms.add('isolated pawn');
-      if (f.theme === 'doubled_pawns') terms.add('doubled pawns');
+      if (f.theme === 'passed_pawn_allowed') terms.add('passed_pawn');
+      if (f.theme === 'isolated_pawn') terms.add('isolated_pawn');
+      if (f.theme === 'doubled_pawns') terms.add('doubled_pawns');
     }
   }
-  return [...terms].map((t) => GLOSSARY[t]!).filter(Boolean);
+  return [...terms].map((term) => t(`glossary.${term}`));
 }

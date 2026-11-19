@@ -7,6 +7,7 @@ import { chessgroundDests } from 'chessops/compat';
 import { positionFromFen, typedMove } from '../core/chess';
 import type { Color } from '../core/eval';
 import type { Arrow } from '../core/explain';
+import { t } from '../i18n';
 
 export interface BoardProps {
   fen: string;
@@ -124,8 +125,8 @@ export function MoveInput({ fen, onMove }: { fen: string; onMove: (uci: string) 
   return (
     <form className="move-input" onSubmit={submit}>
       <input
-        aria-label="Type a move"
-        placeholder="Type a move (Nf3, e2e4)…"
+        aria-label={t('board.type')}
+        placeholder={t('board.placeholder')}
         value={text}
         aria-invalid={invalid}
         onChange={(e) => {
@@ -138,7 +139,7 @@ export function MoveInput({ fen, onMove }: { fen: string; onMove: (uci: string) 
       />
       {invalid && (
         <span className="move-input-error" role="alert">
-          Not a legal move here.
+          {t('board.illegal')}
         </span>
       )}
     </form>

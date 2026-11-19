@@ -271,3 +271,68 @@ screen was looked at with no data. Problems found and fixed:
 Not done: falling back to the single-threaded engine (cached at install) when
 the multi-threaded one cannot be loaded offline; it only matters when the
 server stops before any analysis.
+
+## French interface (November 2026)
+
+The whole app now switches between English and French: interface, move
+explanations and lessons, game summaries, hints, threats, endgame and training
+messages, error messages, and the language-model coach. A select in the header
+and a choice in Settings switch it; the first visit follows the browser's
+language (English otherwise); the choice is kept in `localStorage` so that it
+is known before the first render, and `<html lang>` follows it.
+
+**Choice of library: none.** Options compared (sizes are minified + gzipped
+runtime, as reported in late 2026 comparisons; they vary with the setup):
+
+| Option | Runtime | Type safety | Lazy locales | Notes |
+| --- | --- | --- | --- | --- |
+| i18next + react-i18next | about 14 + 6 kB | keys through module augmentation | yes (backends) | a dependency pair and a React provider for two languages |
+| Lingui | about 2–4 kB | macros, compiled catalogues | yes | needs a compile step (Babel or SWC macro) and message extraction in the build |
+| Paraglide JS (inlang) | about 0.3–1 kB per locale | generated functions | per message | a compiler and an inlang project; messages live outside TypeScript |
+| typesafe-i18n | about 1 kB | strong (codegen) | yes | little maintenance since 2023 |
+| **Typed dictionary (`src/i18n/`)** | about 1 kB | keys and `{params}` checked by `tsc` | yes (`import('./fr')`) | no dependency, no build step |
+
+The in-house dictionary was chosen: two languages, about 740 messages, and the
+type checks we need (a missing key in French, a wrong parameter name) are
+compile errors with under 100 lines of code. Plurals use `Intl.PluralRules` (French
+counts 0 and 1 as singular), numbers `toLocaleString` ("75,3"), and French
+gets a no-break space before `: ; ? !` and `%`.
+
+Measured: the French catalogue is its own chunk (50.4 kB, **15.7 kB gzip**),
+loaded only for French readers and prefetched when idle for offline use. The
+main chunk went from 572.4 kB (183.9 kB gzip) to 613.2 kB (**194.9 kB gzip,
++11.0 kB**): the English catalogue with its keys, and the runtime. Not
+adopted: loading English lazily too (−10 kB on the main chunk, but one more
+request before the first render for every English reader, and the fallback
+catalogue would no longer be at hand).
+
+**Explanations stay verified facts.** Templates are written in both languages
+from the same facts; nothing is translated after the fact. Reviews record the
+language of their texts (`review.locale`); opening a review in the other
+language writes its explanations and summary again from the stored facts
+(templates only, a few milliseconds, no engine). Moves stay in English
+algebraic notation in both languages, because the engine lines, the training
+input and the coach's verifier use it. The coach's fact sheet carries the
+language; the proxy's prompt asks for it, with English move letters; the
+verifier also reads French piece names, percentages, "mat en N" and
+classification words, and rejects French piece letters (Cf3) that would
+otherwise escape the move check. Explanations cached from the coach are kept
+per language.
+
+Tests: catalogue parity and parameters, plurals, fallback, typography and
+browser-language detection (`src/i18n/i18n.test.ts`); a stored review written
+again in French and back, and the verifier on French texts
+(`src/core/coach/coach.test.ts`); switching, persistence, a French browser,
+the review in French, the axe audit and the absence of horizontal overflow at
+phone width in both languages (`e2e/language.spec.ts`). The other end-to-end
+tests pin the browser to `en-US`.
+
+Limitations: opening names (from the Lichess opening book) and player names
+are not translated; material in endgame drills uses French piece letters
+(D, T, F, C) while moves keep the English ones.
+
+Fixed on the way: the opening trainer saved its statistics before moving the
+board on, so a move typed right after a correct one was read in the old
+position and dropped (the opponent end-to-end test failed 4 runs in 4 on this
+machine, on `main` as well). The board now moves first and the statistics are
+saved after: 6 runs in 6.

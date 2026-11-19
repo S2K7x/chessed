@@ -1,7 +1,8 @@
 import { positionFromFen, squareName } from '../chess';
 import type { Classification } from '../classify';
 import type { Color } from '../eval';
-import { CLASS_LABELS, formatLine, type Explanation } from '../explain';
+import { classLabel, formatLine, type Explanation } from '../explain';
+import { getLocale, t, type Locale } from '../../i18n';
 import type { Fact, PieceAt } from '../facts';
 import type { MoveReview } from '../review';
 
@@ -14,7 +15,7 @@ import type { MoveReview } from '../review';
  */
 export type Level = 'beginner' | 'intermediate' | 'advanced';
 
-export const PROMPT_VERSION = 'coach-v1';
+export const PROMPT_VERSION = 'coach-v2';
 
 export interface SheetLine {
   id: string;
@@ -25,6 +26,8 @@ export interface SheetLine {
 
 export interface FactSheet {
   level: Level;
+  /** Language the explanation must be written in (the facts are already in it). */
+  language: Locale;
   player: 'you' | 'white' | 'black';
   move: { label: string; san: string; color: Color; classification: Classification; classLabel: string };
   winBefore: number;
@@ -133,16 +136,17 @@ export function buildSheet(
     vocabulary.numbers.add(Math.round(opts.typicalMove.share * 100));
   }
 
-  const texts = [ex.summary, ...ex.details, ...(ex.better ? [`Better: ${ex.better.san}. ${ex.better.text}`] : [])];
+  const texts = [ex.summary, ...ex.details, ...(ex.better ? [`${t('pgn.better', { san: ex.better.san })} ${ex.better.text}`] : [])];
   const sheet: FactSheet = {
     level: opts.level,
+    language: getLocale(),
     player: opts.player,
     move: {
       label: m.label,
       san: m.san,
       color: m.color,
       classification: m.assessment.classification,
-      classLabel: CLASS_LABELS[m.assessment.classification],
+      classLabel: classLabel(m.assessment.classification),
     },
     winBefore: Math.round(m.assessment.winBefore),
     winAfter: Math.round(m.assessment.winAfter),

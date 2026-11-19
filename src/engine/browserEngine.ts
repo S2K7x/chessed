@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { UciEngine, type UciTransport } from '../core/engine';
 
 export const ENGINE_ID = 'sf19-lite';
@@ -43,18 +44,17 @@ export function createBrowserEngine(): UciEngine {
   });
 }
 
-export const ENGINE_MISSING =
-  'The chess engine files are missing. If you run Chess Coach from its source code, run "npm install" again in the project folder: it copies Stockfish into public/engine. Then reload this page.';
+export const engineMissing = () => t('engine.missing');
 
 /** Why the engine worker failed: its file is missing (served as a page, or 404), or it broke while starting. */
 async function diagnose(url: string, message: string): Promise<Error> {
   try {
     const res = await fetch(url, { method: 'HEAD', cache: 'no-store' });
     const type = res.headers.get('content-type') ?? '';
-    if (!res.ok || type.includes('text/html')) return new Error(ENGINE_MISSING);
+    if (!res.ok || type.includes('text/html')) return new Error(engineMissing());
   } catch {
     // Offline and not cached: the same remedy applies once back online.
-    return new Error('The chess engine could not be loaded. Check your connection (or that Chess Coach is still running), then reload this page.');
+    return new Error(t('engine.unreachable'));
   }
-  return new Error(`The chess engine could not start in this browser${message ? ` (${message})` : ''}. Try reloading the page, or another browser.`);
+  return new Error(t('engine.broken', { detail: message ? ` (${message})` : '' }));
 }

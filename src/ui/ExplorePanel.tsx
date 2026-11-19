@@ -2,6 +2,7 @@ import { useStore } from '../app/store';
 import { replayUci } from '../core/chess';
 import { formatScore, type Color } from '../core/eval';
 import { San } from './San';
+import { t } from '../i18n';
 
 /** The exploration of moves played on the review board, with the engine's view of the position. */
 export function ExplorePanel({ fen }: { fen: string }) {
@@ -27,38 +28,37 @@ export function ExplorePanel({ fen }: { fen: string }) {
 
   return (
     <section className="coach explore" aria-live="polite">
-      <p className="coach-kicker">Exploring</p>
+      <p className="coach-kicker">{t('explore.kicker')}</p>
       <p className="muted small">
-        From the game after {from ? `${Math.ceil(from.ply / 2)}${from.color === 'white' ? '.' : '…'} ${from.san}` : 'the start'}: play any move on the
-        board.
+        {t('explore.from', { from: from ? `${Math.ceil(from.ply / 2)}${from.color === 'white' ? '.' : '…'} ${from.san}` : t('explore.start') })}
       </p>
-      <p className="explore-line">{explore.moves.length ? numbered(explore.moves, explore.index - 1) : <span className="muted">No move yet.</span>}</p>
+      <p className="explore-line">{explore.moves.length ? numbered(explore.moves, explore.index - 1) : <span className="muted">{t('explore.none')}</span>}</p>
       {evaluation?.terminal ? (
-        <p className="coach-summary">{evaluation.terminal === 'checkmate' ? 'Checkmate.' : 'Draw.'}</p>
+        <p className="coach-summary">{evaluation.terminal === 'checkmate' ? t('endgame.checkmate') : t('playout.draw')}</p>
       ) : best ? (
         <>
           <p className="explore-eval">
-            <strong>{formatScore(best.score)}</strong> <span className="muted small">depth {best.depth}</span>
+            <strong>{formatScore(best.score)}</strong> <span className="muted small">{t('explore.depth', { depth: best.depth })}</span>
           </p>
           <p className="coach-detail">
-            Best: {numbered(bestLine)}
+            {t('explore.best')} {numbered(bestLine)}
           </p>
         </>
       ) : e && typeof e === 'object' && 'error' in e ? (
         <p className="coach-detail">{e.error}</p>
       ) : (
-        <p className="muted">Stockfish is thinking…</p>
+        <p className="muted">{t('common.stockfishThinking')}</p>
       )}
       <div className="coach-actions">
         {best?.pv[0] && (
           <button className="primary" onClick={() => exploreMove(best.pv[0]!)}>
-            Play the best move
+            {t('explore.playBest')}
           </button>
         )}
         <button onClick={() => step(-1)} disabled={explore.index === 0}>
-          Take back
+          {t('explore.takeBack')}
         </button>
-        <button onClick={endExplore}>Back to the game</button>
+        <button onClick={endExplore}>{t('explore.back')}</button>
       </div>
     </section>
   );

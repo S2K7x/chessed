@@ -15,6 +15,7 @@ export interface Verdict {
   problems: string[];
 }
 
+/** Piece names in English and French, to the role they name. */
 const PIECE_WORDS: Record<string, string> = {
   king: 'king',
   queen: 'queen',
@@ -22,14 +23,26 @@ const PIECE_WORDS: Record<string, string> = {
   bishop: 'bishop',
   knight: 'knight',
   pawn: 'pawn',
+  roi: 'king',
+  dame: 'queen',
+  reine: 'queen',
+  tour: 'rook',
+  fou: 'bishop',
+  cavalier: 'knight',
+  pion: 'pawn',
 };
 
 /** SAN moves (piece moves, captures, castling, promotions). */
 const SAN_RE = /\b(?:O-O(?:-O)?|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h]x[a-h][1-8](?:=[QRBN])?|[a-h][18]=[QRBN])[+#]?/g;
 const SQUARE_RE = /\b[a-h][1-8]\b/g;
 const PIECE_ON_RE = /\b(king|queen|rook|bishop|knight|pawn)s?\s+(?:on|from|to|at)\s+([a-h][1-8])\b/gi;
-const PERCENT_RE = /(\d+(?:\.\d+)?)\s?%/g;
-const MATE_IN_RE = /mate in (\d+)/gi;
+/** "cavalier en f3", "la tour de a1", "le fou sur c4", "dame vers h5". */
+const PIECE_ON_FR_RE = /(?<![\p{L}])(roi|dame|reine|tour|fou|cavalier|pion)s?\s+(?:en|sur|de|d'|depuis|vers|à)\s*([a-h][1-8])\b/giu;
+/** French algebraic notation (D, T, F, C): the sheet and the answer must use English letters. */
+const FRENCH_SAN_RE = /\b[DTFC][a-h]?[1-8]?x?[a-h][1-8]/g;
+/** "75%", "75 %" (French spacing, also with a no-break space), "37,5 %". */
+const PERCENT_RE = /(\d+(?:[.,]\d+)?)\s?%/g;
+const MATE_IN_RE = /(?:mate in|mat(?: forcé)? en) (\d+)/gi;
 
 const CLASS_WORDS: [RegExp, Classification[]][] = [
   [/\bblunder/i, ['blunder']],
@@ -37,6 +50,12 @@ const CLASS_WORDS: [RegExp, Classification[]][] = [
   [/\binaccura/i, ['inaccuracy']],
   [/\bbrilliant/i, ['brilliant']],
   [/\bbest move\b/i, ['best', 'great', 'brilliant']],
+  // French: "gaffe", "erreur" (also "grave erreur"), "imprécision", "coup brillant", "meilleur coup".
+  [/\bgaffe/i, ['blunder']],
+  [/\berreur/i, ['mistake', 'miss', 'blunder']],
+  [/\bimpr[ée]cision/i, ['inaccuracy']],
+  [/\bbrillant/i, ['brilliant']],
+  [/\bmeilleur coup\b/i, ['best', 'great', 'brilliant']],
 ];
 
 /**
@@ -57,12 +76,15 @@ export function verifyCoachText(t: CoachText, v: Vocabulary, factIds: readonly s
       problems.push(`square ${m[0]} is not in the fact sheet`);
     }
   }
-  for (const m of all.matchAll(PIECE_ON_RE)) {
+  for (const m of all.matchAll(FRENCH_SAN_RE)) {
+    problems.push(`move ${m[0]} uses French piece letters: write moves in English algebraic notation (K, Q, R, B, N)`);
+  }
+  for (const m of [...all.matchAll(PIECE_ON_RE), ...all.matchAll(PIECE_ON_FR_RE)]) {
     const role = PIECE_WORDS[m[1]!.toLowerCase()];
     if (role && !v.pieces.has(`${role} ${m[2]}`)) problems.push(`there is no ${role} on ${m[2]} in the positions of the fact sheet`);
   }
   for (const m of all.matchAll(PERCENT_RE)) {
-    const n = Math.round(Number(m[1]));
+    const n = Math.round(Number(m[1]!.replace(',', '.')));
     if (![...v.numbers].some((x) => Math.abs(x - n) <= 1)) problems.push(`${m[0]} is not a number from the fact sheet`);
   }
   for (const m of all.matchAll(MATE_IN_RE)) {

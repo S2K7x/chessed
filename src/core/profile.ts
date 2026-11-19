@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { ERROR_CLASSES } from './classify';
 import { povScore, type Color } from './eval';
 import { tacticalOpportunity } from './facts/opportunity';
@@ -235,7 +236,7 @@ export function computeProfile(input: ProfileEntry[]): Profile {
   // Openings, from the player's side.
   const byOpening = new Map<string, { name: string; color: Color; games: number; points: number; losses: number[] }>();
   for (const { game, review, color } of entries) {
-    const name = review.opening?.name ?? game.openingName ?? 'Unknown opening';
+    const name = review.opening?.name ?? game.openingName ?? t('profile.unknownOpening');
     const key = `${color}|${name}`;
     const o = byOpening.get(key) ?? { name, color, games: 0, points: 0, losses: [] };
     o.games++;

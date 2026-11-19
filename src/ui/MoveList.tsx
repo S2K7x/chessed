@@ -4,6 +4,7 @@ import type { MoveReview } from '../core/review';
 import { ClassBadge } from './ClassBadge';
 import { Icon } from './icons';
 import { San } from './San';
+import { t } from '../i18n';
 
 interface Props {
   game: Game;
@@ -34,7 +35,7 @@ export function MoveList({ game, moves, cursor, onSelect, onExport }: Props) {
   });
 
   return (
-    <ol className="movelist" aria-label="Moves">
+    <ol className="movelist" aria-label={t('moves.label')}>
       {rows.map((row) => (
         <li key={row.number} className="movelist-row">
           <span className="movelist-num">{row.number}</span>
@@ -55,7 +56,7 @@ export function MoveList({ game, moves, cursor, onSelect, onExport }: Props) {
                   <San san={m.san} color={m.color} />
                 </span>
                 {r?.timeSpentMs !== undefined && (
-                  <span className={`movelist-time${r.fast ? ' is-fast' : ''}`} title={r.fast ? 'Played much faster than your usual pace' : 'Time spent'}>
+                  <span className={`movelist-time${r.fast ? ' is-fast' : ''}`} title={r.fast ? t('moves.fast') : t('moves.time')}>
                     {formatSeconds(r.timeSpentMs)}
                   </span>
                 )}
@@ -69,7 +70,7 @@ export function MoveList({ game, moves, cursor, onSelect, onExport }: Props) {
         <li className="movelist-end">
           <span>{game.result.replace('-', '–')}</span>
           {onExport && (
-            <button onClick={onExport} title="Download the annotated PGN">
+            <button onClick={onExport} title={t('moves.download')}>
               <Icon name="download" /> PGN
             </button>
           )}

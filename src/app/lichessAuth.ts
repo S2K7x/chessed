@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 /**
  * Lichess login with OAuth 2 (authorization code + PKCE). Lichess accepts any
  * client id without registration; no scope is requested: the token only
@@ -45,13 +46,13 @@ export async function finishLichessLogin(): Promise<{ token: string; username?: 
   sessionStorage.removeItem(VERIFIER_KEY);
   sessionStorage.removeItem(STATE_KEY);
   history.replaceState(null, '', redirectUri());
-  if (!verifier || state !== expected) throw new Error('The Lichess login could not be verified. Try again.');
+  if (!verifier || state !== expected) throw new Error(t('lichess.loginUnverified'));
   const res = await fetch('https://lichess.org/api/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'authorization_code', code, code_verifier: verifier, redirect_uri: redirectUri(), client_id: CLIENT_ID }),
   });
-  if (!res.ok) throw new Error(`Lichess refused the login (${res.status}).`);
+  if (!res.ok) throw new Error(t('lichess.loginRefused', { status: res.status }));
   const { access_token: token } = (await res.json()) as { access_token: string };
   const me = await fetch('https://lichess.org/api/account', { headers: { Authorization: `Bearer ${token}` } });
   const username = me.ok ? ((await me.json()) as { username?: string }).username : undefined;

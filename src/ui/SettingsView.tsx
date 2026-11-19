@@ -1,86 +1,89 @@
 import { useStore } from '../app/store';
 import { engineThreads } from '../engine/browserEngine';
+import { t } from '../i18n';
+import { LanguageSwitch } from './LanguageSwitch';
 
 export function SettingsView() {
   const { settings } = useStore();
   const { updateSettings, exportBackup, importBackup, connectLichess, disconnectLichess } = useStore.getState();
+  const threads = engineThreads();
   return (
     <div className="settings card">
-      <h1>Settings</h1>
+      <h1>{t('settings.title')}</h1>
+      <LanguageSwitch />
       <label>
-        Lichess username
+        {t('settings.lichessUser')}
         <input value={settings.lichessUsername} onChange={(e) => void updateSettings({ lichessUsername: e.target.value })} autoComplete="off" spellCheck={false} />
       </label>
       <label>
-        Chess.com username
+        {t('settings.chesscomUser')}
         <input value={settings.chesscomUsername} onChange={(e) => void updateSettings({ chesscomUsername: e.target.value })} autoComplete="off" spellCheck={false} />
       </label>
-      <p className="muted">Used to know which side you played, and to find your Chess.com games by link.</p>
+      <p className="muted">{t('settings.usernamesHelp')}</p>
       <div className="lichess-account">
         {settings.lichessToken ? (
           <>
-            <span>Lichess account connected (opening explorer).</span>
-            <button onClick={() => void disconnectLichess()}>Disconnect</button>
+            <span>{t('settings.lichessConnected')}</span>
+            <button onClick={() => void disconnectLichess()}>{t('settings.disconnect')}</button>
           </>
         ) : (
           <>
-            <span className="muted small">Connect your Lichess account to use the opening explorer (masters and players at your level). No permission is requested.</span>
-            <button onClick={() => void connectLichess()}>Connect Lichess</button>
+            <span className="muted small">{t('settings.lichessConnectHelp')}</span>
+            <button onClick={() => void connectLichess()}>{t('settings.connectLichess')}</button>
           </>
         )}
       </div>
       <label>
-        Analysis depth: {settings.depth}
+        {t('settings.depth', { depth: settings.depth })}
         <input type="range" min={10} max={22} value={settings.depth} onChange={(e) => void updateSettings({ depth: Number(e.target.value) })} />
       </label>
-      <p className="muted">Higher is more precise and slower. 14 reviews a 40-move game in about a minute on a recent laptop.</p>
+      <p className="muted">{t('settings.depthHelp')}</p>
       <fieldset>
-        <legend>Analysis profile</legend>
+        <legend>{t('settings.profile')}</legend>
         <label className="radio">
           <input type="radio" name="profile" checked={settings.profile === 'quick'} onChange={() => void updateSettings({ profile: 'quick' })} />
-          Quick (the depth above, 2 lines)
+          {t('settings.profile.quick')}
         </label>
         <label className="radio">
           <input type="radio" name="profile" checked={settings.profile === 'deep'} onChange={() => void updateSettings({ profile: 'deep' })} />
-          Deep (depth 20 or more, 3 lines)
+          {t('settings.profile.deep')}
         </label>
       </fieldset>
-      <p className="muted">Both profiles look again, 4 plies deeper, at every critical moment. Engine: {engineThreads() > 1 ? `${engineThreads()} threads` : 'single thread'}.</p>
+      <p className="muted">
+        {t('settings.profileHelp', { engine: threads > 1 ? t('settings.threads', { count: threads }) : t('settings.singleThread') })}
+      </p>
       <label className="radio">
         <input type="checkbox" checked={settings.useLichess} onChange={(e) => void updateSettings({ useLichess: e.target.checked })} />
-        Use Lichess tablebases and cloud evaluations
+        {t('settings.useLichess')}
       </label>
-      <p className="muted">Exact endgame results (7 pieces or fewer) and deep opening evaluations. Those positions are sent to lichess.org.</p>
+      <p className="muted">{t('settings.useLichessHelp')}</p>
       <fieldset>
-        <legend>Coach level</legend>
+        <legend>{t('settings.level')}</legend>
         {(['auto', 'beginner', 'intermediate', 'advanced'] as const).map((l) => (
           <label key={l} className="radio">
             <input type="radio" name="level" checked={settings.level === l} onChange={() => void updateSettings({ level: l })} />
-            {l === 'auto' ? 'From the game rating' : l[0]!.toUpperCase() + l.slice(1)}
+            {t(`settings.level.${l}`)}
           </label>
         ))}
       </fieldset>
       <fieldset>
-        <legend>Language-model coach (optional)</legend>
+        <legend>{t('settings.llm')}</legend>
         <label className="radio">
           <input type="checkbox" checked={settings.llmCoach} onChange={(e) => void updateSettings({ llmCoach: e.target.checked })} />
-          Write explanations with Claude
+          {t('settings.llm.enable')}
         </label>
         <label>
-          Coach endpoint
+          {t('settings.llm.url')}
           <input value={settings.coachUrl} placeholder="https://your-worker.workers.dev/coach" onChange={(e) => void updateSettings({ coachUrl: e.target.value })} spellCheck={false} />
         </label>
         <label>
-          Coach token
+          {t('settings.llm.token')}
           <input type="password" value={settings.coachToken} onChange={(e) => void updateSettings({ coachToken: e.target.value })} autoComplete="off" />
         </label>
-        <p className="muted small">
-          Uses your own proxy (proxy/worker.ts) and Anthropic API key. Only verified facts about the move are sent. Every answer is checked against the
-          board before it is shown; if it mentions a move, square or piece that is not in the facts, the engine facts are shown instead.
-        </p>
+        <p className="muted small">{t('settings.llm.help')}</p>
       </fieldset>
       <label>
-        Daily goal (positions to train)
+        {t('settings.dailyGoal')}
         <select value={settings.dailyGoal} onChange={(e) => void updateSettings({ dailyGoal: Number(e.target.value) })}>
           {[5, 10, 20, 30, 50].map((n) => (
             <option key={n} value={n}>
@@ -90,27 +93,27 @@ export function SettingsView() {
         </select>
       </label>
       <fieldset>
-        <legend>Theme</legend>
-        {(['system', 'light', 'dark'] as const).map((t) => (
-          <label key={t} className="radio">
-            <input type="radio" name="theme" checked={settings.theme === t} onChange={() => void updateSettings({ theme: t })} />
-            {t[0]!.toUpperCase() + t.slice(1)}
+        <legend>{t('settings.theme')}</legend>
+        {(['system', 'light', 'dark'] as const).map((th) => (
+          <label key={th} className="radio">
+            <input type="radio" name="theme" checked={settings.theme === th} onChange={() => void updateSettings({ theme: th })} />
+            {t(`settings.theme.${th}`)}
           </label>
         ))}
       </fieldset>
       <fieldset>
-        <legend>Your data</legend>
-        <p className="muted small">Games, reviews and training cards live in this browser. Keep a copy, or move them to another device.</p>
+        <legend>{t('settings.data')}</legend>
+        <p className="muted small">{t('settings.dataHelp')}</p>
         <div className="import-actions">
-          <button onClick={() => void exportBackup()}>Export a backup</button>
+          <button onClick={() => void exportBackup()}>{t('settings.export')}</button>
           <label className="button-like">
-            Import a backup
+            {t('settings.import')}
             <input type="file" accept="application/json,.json" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void importBackup(f); e.target.value = ''; }} />
           </label>
         </div>
       </fieldset>
       <p className="muted small">
-        Chess Coach is free software (GPL-3.0-or-later), powered by Stockfish 19 and Maia-3 (CSSLab, AGPL-3.0). See the <a href="https://github.com/S2K7x/chessed">source code</a>.
+        {t('settings.licence')} <a href="https://github.com/S2K7x/chessed">{t('settings.source')}</a>.
       </p>
     </div>
   );

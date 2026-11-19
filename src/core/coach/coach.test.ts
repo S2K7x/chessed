@@ -2,7 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import openings from '../../data/openings.json';
 import type { OpeningBook } from '../openings';
 import { parseGame } from '../pgn';
-import { analyseGame, type GameReview } from '../review';
+import { analyseGame, localizeReview, type GameReview } from '../review';
+import { registerCatalog, setLocale } from '../../i18n';
+import { fr } from '../../i18n/fr';
 import { createNodeEngine } from '../testing/nodeEngine';
 import { LEGALL_PGN } from '../testing/fixtures';
 import { buildSheet, levelFromElo } from './sheet';
@@ -84,5 +86,64 @@ describe('verifyCoachText', () => {
   it('rejects unknown or missing fact citations', () => {
     expect(check({ cited_facts: ['F99'] }).ok).toBe(false);
     expect(check({ cited_facts: [] }).ok).toBe(false);
+  });
+});
+
+describe('in French', () => {
+  const inFrench = <T>(run: () => T): T => {
+    registerCatalog('fr', fr);
+    setLocale('fr');
+    try {
+      return run();
+    } finally {
+      setLocale('en');
+    }
+  };
+
+  it('writes the stored review again in French, from the same facts', () => {
+    const french = inFrench(() => localizeReview(review, game));
+    const m = french.moves.find((x) => x.san === 'Bxd1')!;
+    expect(french.locale).toBe('fr');
+    expect(m.explanation.title).toContain('Gaffe');
+    expect(m.explanation.summary).toMatch(/échec et mat forcé en 2/);
+    expect(m.facts).toEqual(bxd1().facts);
+    expect(m.explanation.lines.map((l) => l.moves.map((x) => x.san))).toEqual(bxd1().explanation.lines.map((l) => l.moves.map((x) => x.san)));
+    expect(french.summary.white.join(' ')).not.toMatch(/winning chances/);
+    // Back to English: the English texts come back.
+    expect(localizeReview(french, game).moves.find((x) => x.san === 'Bxd1')!.explanation.summary).toBe(bxd1().explanation.summary);
+  });
+
+  const frenchCheck = (patch: Partial<CoachText>) =>
+    inFrench(() => {
+      const fm = localizeReview(review, game).moves.find((x) => x.san === 'Bxd1')!;
+      const { sheet, vocabulary } = buildSheet(fm, { level: 'intermediate', player: 'you', ...fens });
+      expect(sheet.language).toBe('fr');
+      const text: CoachText = {
+        headline: 'Prendre la dame mène au mat',
+        explanation: `Bxd1 gagne la dame, mais permet un mat en 2 : 6. Bxf7+ Ke7 7. Nd5#. Vos chances de gain passent de ${sheet.winBefore} % à ${sheet.winAfter} %.`,
+        why_better: 'dxe5 prend le cavalier en e5 et garde votre roi à l’abri.',
+        lesson: 'Quand votre roi a peu de cases de fuite, vérifiez chaque échec adverse.',
+        cited_facts: ['F1', 'F2'],
+        ...patch,
+      };
+      return verifyCoachText(text, vocabulary, sheet.facts.map((f) => f.id));
+    });
+
+  it('accepts a French text built from the facts (same SAN moves and squares)', () => {
+    expect(frenchCheck({}).problems).toEqual([]);
+  });
+
+  it('rejects French piece names placed on the wrong square', () => {
+    expect(frenchCheck({ explanation: 'Votre cavalier en c6 est perdu.' }).problems.join()).toMatch(/knight on c6/);
+  });
+
+  it('rejects moves written with French piece letters', () => {
+    expect(frenchCheck({ why_better: 'Cxe5 était meilleur.' }).problems.join()).toMatch(/French piece letters/);
+  });
+
+  it('rejects a wrong French percentage, mate length or classification word', () => {
+    expect(frenchCheck({ explanation: 'Vos chances tombent à 55 %.' }).ok).toBe(false);
+    expect(frenchCheck({ explanation: 'Cela permet un mat en 4.' }).ok).toBe(false);
+    expect(frenchCheck({ headline: 'Un coup brillant' }).ok).toBe(false);
   });
 });

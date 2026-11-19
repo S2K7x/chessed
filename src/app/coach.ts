@@ -1,3 +1,4 @@
+import { getLocale, t } from '../i18n';
 import { CLASSIFIER_VERSION } from '../core/classify';
 import { buildSheet, levelFromElo, PROMPT_VERSION, type FactSheet, type Level } from '../core/coach/sheet';
 import { verifyCoachText, type CoachText } from '../core/coach/verify';
@@ -26,7 +27,7 @@ async function callCoach(s: Settings, sheet: FactSheet, feedback: string[]): Pro
     body: JSON.stringify({ sheet, feedback }),
   });
   const data = (await res.json().catch(() => ({}))) as CoachText & { error?: string };
-  if (!res.ok) throw new Error(data.error ?? `The coach answered ${res.status}.`);
+  if (!res.ok) throw new Error(data.error ?? t('coach.status', { status: res.status }));
   return data;
 }
 
@@ -42,9 +43,9 @@ export async function coachExplanation(
   ctx: { myColor: Color | undefined; opening?: string },
 ): Promise<CoachResult> {
   const move = game.moves.find((x) => x.ply === m.ply);
-  if (!move) return { status: 'error', message: 'Unknown move.' };
+  if (!move) return { status: 'error', message: t('coach.unknownMove') };
   const level = coachLevel(settings, game, ctx.myColor);
-  const key = `${move.fenBefore}|${m.uci}|${CLASSIFIER_VERSION}|${PROMPT_VERSION}|${level}`;
+  const key = `${move.fenBefore}|${m.uci}|${CLASSIFIER_VERSION}|${PROMPT_VERSION}|${level}|${getLocale()}`;
   const cached = await db.explanations.get(key);
   if (cached) return { status: 'ok', text: cached.text, cached: true };
 

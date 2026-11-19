@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { useStore } from '../app/store';
+import { t } from '../i18n';
 
 const SHOW_MS = 5000;
 const PEEK_MS = 2000;
@@ -33,15 +34,15 @@ export function useBlindfold(positionKey: string | undefined): { hidden: boolean
     <div className="blindfold">
       <label className="radio">
         <input type="checkbox" checked={on} onChange={(e) => void updateSettings({ blindfold: e.target.checked })} />
-        Blindfold: hide the pieces after 5 seconds
+        {t('blindfold.toggle')}
       </label>
       {hidden && (
         <>
           <span className="muted small" role="status">
-            Pieces hidden: type or play your move from memory.
+            {t('blindfold.hidden')}
           </span>
           <button className="small-button" onClick={peek}>
-            Peek
+            {t('blindfold.peek')}
           </button>
         </>
       )}

@@ -1,6 +1,7 @@
 import { parsePgn } from 'chessops/pgn';
 import type { Classification } from './classify';
-import { CLASS_LABELS } from './explain';
+import { classLabel } from './explain';
+import { t } from '../i18n';
 import { cpEquivalent, type WhiteScore } from './eval';
 import type { Game } from './game';
 import type { GameReview } from './review';
@@ -52,7 +53,7 @@ export function annotatedPgn(game: Game, review: GameReview): string {
     const evalTag = best ? `[%eval ${evalText(best.score)}]` : '';
     const notable = nag !== undefined || m.isKeyMoment;
     const text = notable
-      ? `${CLASS_LABELS[c]}. ${m.explanation.summary}${m.explanation.better ? ` Better: ${m.explanation.better.san}.` : ''}`
+      ? `${classLabel(c)}. ${m.explanation.summary}${m.explanation.better ? ` ${t('pgn.better', { san: m.explanation.better.san })}` : ''}`
       : '';
     if (text || evalTag) {
       tokens.push(`{${[clean(text), evalTag].filter(Boolean).join(' ')}}`);

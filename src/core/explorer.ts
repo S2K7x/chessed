@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { Fetch } from './import/fetchers';
 
 /**
@@ -59,9 +60,9 @@ export async function explore(
     params.set('speeds', (opts.speeds ?? ['blitz', 'rapid', 'classical']).join(','));
   }
   const res = await fetch(`https://explorer.lichess.ovh/${source}?${params}`, { headers: { Authorization: `Bearer ${token}` } });
-  if (res.status === 401) throw new ExplorerAuthError('Connect your Lichess account to use the opening explorer.');
-  if (res.status === 429) throw new Error('The opening explorer is busy. Try again in a minute.');
-  if (!res.ok) throw new Error(`The opening explorer answered ${res.status}.`);
+  if (res.status === 401) throw new ExplorerAuthError(t('explorer.auth'));
+  if (res.status === 429) throw new Error(t('explorer.busy'));
+  if (!res.ok) throw new Error(t('explorer.status', { status: res.status }));
   const data = (await res.json()) as { white: number; draws: number; black: number; opening?: { eco: string; name: string } | null; moves: RawMove[] };
   const out: ExplorerResult = {
     source,

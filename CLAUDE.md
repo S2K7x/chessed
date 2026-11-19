@@ -63,6 +63,9 @@ mistakes. No account and no server costs.
   adding it to `exportAll` / `importAll` (backups).
 - `src/ui/`: React screens. Secondary screens are lazy-loaded in `App.tsx`
   (`loaders`) and prefetched when idle so that the app stays usable offline.
+- `src/i18n/`: typed dictionary (English source catalogue `en.ts`, French
+  `fr.ts` loaded on demand). Every user-facing string goes through `t()`; a new
+  key must be added to both catalogues (the compiler checks it).
 - `src/engine/`: Stockfish worker and Maia.
 - `proxy/`: Cloudflare Worker for the optional language-model coach.
 - `e2e/`: Playwright tests (desktop and Pixel 7), including the axe-core

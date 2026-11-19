@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { epdOf, legalUci, positionFromFen, replayUci, terminalOf, type SanMove } from './chess';
 import type { Evaluator } from './engine';
 import { positionPovWinPercent, type Color, type PositionEval } from './eval';
@@ -93,17 +94,19 @@ export function materialText(fen: string, color: Color): string {
   const board = fen.split(' ')[0]!;
   const side = (white: boolean) => {
     const parts: string[] = [];
-    for (const [letter, name] of [['q', 'Q'], ['r', 'R'], ['b', 'B'], ['n', 'N']] as const) {
+    // Piece letters of the current language: "QRBNPK" in English, "DTFCPR" in French.
+    const names = t('material.letters');
+    ['q', 'r', 'b', 'n'].forEach((letter, i) => {
       const n = [...board].filter((c) => c === (white ? letter.toUpperCase() : letter)).length;
-      for (let k = 0; k < n; k++) parts.push(name);
-    }
+      for (let k = 0; k < n; k++) parts.push(names[i]!);
+    });
     const pawns = [...board].filter((c) => c === (white ? 'P' : 'p')).length;
-    if (pawns) parts.push(`${pawns}P`);
-    return parts.length ? parts.join('+') : 'K';
+    if (pawns) parts.push(`${pawns}${names[4]}`);
+    return parts.length ? parts.join('+') : names[5]!;
   };
   const mine = side(color === 'white');
   const theirs = side(color !== 'white');
-  return `${mine} vs ${theirs}`;
+  return t('material.vs', { mine, theirs });
 }
 
 export interface EndgameSession {
@@ -135,11 +138,11 @@ export async function startEndgame(drill: EndgameDrill, evaluator: Evaluator, de
 
 /** A draw by the rules once `fen` is reached (stalemate, material, repetition, 50 moves), described. */
 function drawText(fen: string, seen: readonly string[]): string | undefined {
-  const t = terminalOf(positionFromFen(fen));
-  if (t === 'stalemate') return 'Stalemate.';
-  if (t === 'insufficient') return 'Not enough material left to mate: a draw.';
-  if (seen.filter((e) => e === epdOf(fen)).length >= 3) return 'The same position came up three times: a draw.';
-  if (Number(fen.split(' ')[4]) >= 100) return 'Fifty moves without a capture or a pawn move: a draw.';
+  const end = terminalOf(positionFromFen(fen));
+  if (end === 'stalemate') return t('endgame.stalemate');
+  if (end === 'insufficient') return t('endgame.insufficient');
+  if (seen.filter((e) => e === epdOf(fen)).length >= 3) return t('endgame.repetition');
+  if (Number(fen.split(' ')[4]) >= 100) return t('endgame.fifty');
   return undefined;
 }
 
@@ -189,7 +192,7 @@ export async function playEndgameMove(s: EndgameSession, uci: string, evaluator:
     });
 
   // The player's move ends the game.
-  if (terminalOf(positionFromFen(mine.fenAfter)) === 'checkmate') return ended(next, true, 'Checkmate.');
+  if (terminalOf(positionFromFen(mine.fenAfter)) === 'checkmate') return ended(next, true, t('endgame.checkmate'));
   const draw = drawText(mine.fenAfter, next.seen);
   if (draw) return drawn(next, draw, slipped);
 
@@ -201,22 +204,22 @@ export async function playEndgameMove(s: EndgameSession, uci: string, evaluator:
   const reply = punish ? replayUci(mine.fenAfter, [punish])[0] : undefined;
   const slippedHere = (why: string) => ({ ...slipped(winAfter, why), ...(reply ? { reply } : {}) });
   if (drill.goal === 'win') {
-    if (mateForMe) return ended(next, true, `Converted: a forced mate in ${Math.abs(mate!)} is on the board.`, { winAfter });
+    if (mateForMe) return ended(next, true, t('endgame.convertedMate', { n: Math.abs(mate!) }), { winAfter });
     const known = bareKingMate(mine.fenAfter, color);
     if (known && winAfter >= WIN_FROM) {
-      return ended(next, true, `Converted: ${known} against a bare king is a known mate.`, { winAfter });
+      return ended(next, true, t(known === 'queen' ? 'endgame.convertedQueen' : 'endgame.convertedRook'), { winAfter });
     }
-    if (winAfter < WIN_LOST_BELOW) return slippedHere(`After ${mine.san} the position is no longer winning.`);
+    if (winAfter < WIN_LOST_BELOW) return slippedHere(t('endgame.noLongerWinning', { san: mine.san }));
   } else {
-    if (winAfter < DRAW_LOST_BELOW) return slippedHere(`After ${mine.san} the position is lost.`);
-    if (next.playerMoves >= HOLD_MOVES) return ended(next, true, `Held: ${HOLD_MOVES} moves without letting the engine through.`, { winAfter });
+    if (winAfter < DRAW_LOST_BELOW) return slippedHere(t('endgame.lost', { san: mine.san }));
+    if (next.playerMoves >= HOLD_MOVES) return ended(next, true, t('endgame.held', { n: HOLD_MOVES }), { winAfter });
   }
 
   // The engine replies with its best move.
   const theirs = reply;
-  if (!theirs) return ended(next, drill.goal === 'draw', 'The engine has no move.');
+  if (!theirs) return ended(next, drill.goal === 'draw', t('endgame.noMove'));
   next = { ...next, fen: theirs.fenAfter, line: [...next.line, theirs], seen: [...next.seen, epdOf(theirs.fenAfter)] };
-  if (terminalOf(positionFromFen(theirs.fenAfter)) === 'checkmate') return ended(next, false, `${theirs.san} is checkmate.`);
+  if (terminalOf(positionFromFen(theirs.fenAfter)) === 'checkmate') return ended(next, false, t('endgame.isMate', { san: theirs.san }));
   const draw2 = drawText(theirs.fenAfter, next.seen);
   if (draw2) return drawn(next, draw2, slipped);
 
@@ -225,5 +228,5 @@ export async function playEndgameMove(s: EndgameSession, uci: string, evaluator:
 }
 
 function drawn(s: EndgameSession, text: string, slipped: (w: number, why: string) => EndgameSession): EndgameSession {
-  return s.drill.goal === 'draw' ? ended(s, true, `${text} You held the draw.`) : slipped(50, `${text} The win is gone.`);
+  return s.drill.goal === 'draw' ? ended(s, true, t('endgame.heldDraw', { text })) : slipped(50, t('endgame.winGone', { text }));
 }

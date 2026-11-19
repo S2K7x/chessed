@@ -1,3 +1,4 @@
+import { localizeReview } from '../../core/review';
 import type { StateCreator } from 'zustand';
 import type { Store } from '../store';
 import type { PositionEval } from '../../core/eval';
@@ -54,7 +55,7 @@ export const createWoodpeckerSlice: StateCreator<Store, [], [], WoodpeckerSlice>
     }
     const ex = await db.exercises.get(id);
     const [game, stored] = ex ? await Promise.all([db.games.get(ex.gameId), db.reviews.get(ex.gameId)]) : [];
-    const move = ex ? stored?.review.moves[ex.moveIndex] : undefined;
+    const move = ex && stored && game ? localizeReview(stored.review, game).moves[ex.moveIndex] : undefined;
     const evalBefore = ex ? stored?.review.evals[ex.kind === 'threat' ? ex.moveIndex + 1 : ex.moveIndex] : undefined;
     if (!ex || !game || !move || !evalBefore) {
       // The position's game was deleted: take it out of the set and go on.

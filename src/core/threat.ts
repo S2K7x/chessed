@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { parseFen, makeFen } from 'chessops/fen';
 import { Chess } from 'chessops/chess';
 import { parseSquare } from 'chessops/util';
@@ -55,17 +56,18 @@ export async function findThreat(fen: string, evaluator: Evaluator, depth: numbe
 }
 
 /** One sentence about a threat, addressed to the side that must defend. */
-export function describeThreat(t: Threat): string {
-  switch (t.kind) {
+export function describeThreat(th: Threat): string {
+  switch (th.kind) {
     case 'mate':
-      return `Your opponent threatens mate in ${t.mateIn}: ${t.line.map((m) => m.san).join(' ')}.`;
+      return t('threat.mate', { n: th.mateIn, line: th.line.map((m) => m.san).join(' ') });
     case 'material': {
-      const first = t.line[0]!;
-      const what = t.target ? `your ${t.target.role} on ${t.target.square}` : `about ${t.amount} points of material`;
-      const how = t.pattern?.kind === 'fork' ? ' (a fork)' : t.pattern?.kind === 'skewer' ? ' (a skewer)' : t.pattern?.kind === 'discovered_attack' ? ' (a discovered attack)' : '';
-      return `Your opponent threatens ${first.san}${how}, winning ${what}.`;
+      const first = th.line[0]!;
+      const what = th.target ? t(`piece.your.${th.target.role}`, { square: th.target.square }) : t('threat.points', { count: th.amount });
+      const k = th.pattern?.kind;
+      const how = k === 'fork' || k === 'skewer' || k === 'discovered_attack' ? ` (${t(`motif.${k}`)})` : '';
+      return t('threat.material', { san: first.san, how, what });
     }
     case 'none':
-      return t.move ? `No direct threat. Your opponent's most useful move would be ${t.move.san}.` : 'No direct threat.';
+      return th.move ? t('threat.noneBut', { san: th.move.san }) : t('threat.none');
   }
 }

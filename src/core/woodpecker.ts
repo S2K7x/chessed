@@ -1,4 +1,5 @@
 import type { Exercise } from './training';
+import { t } from '../i18n';
 
 /**
  * The Woodpecker method (Axel Smith and Hans Tikkanen): solve the same set of
@@ -81,7 +82,7 @@ export function canStartCycle(set: WoodpeckerSet): boolean {
 }
 
 export function startCycle(set: WoodpeckerSet, now = Date.now()): WoodpeckerSet {
-  if (!canStartCycle(set)) throw new Error('A cycle cannot be started now.');
+  if (!canStartCycle(set)) throw new Error(t('woodpecker.cannotStart'));
   return { ...set, cycles: [...set.cycles, { number: set.cycles.length + 1, startedAt: now, results: [] }] };
 }
 

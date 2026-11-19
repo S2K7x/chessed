@@ -13,9 +13,11 @@ import { OpeningPanel } from './OpeningPanel';
 import { coachAvailable, coachLevel } from '../app/coach';
 import { hintsFor } from '../core/hints';
 import { glossaryFor } from '../core/explain';
-import { CLASS_META, SUMMARY_ORDER } from './classMeta';
+import { SUMMARY_ORDER } from './classMeta';
+import { classLabel } from '../core/explain';
+import { num, t } from '../i18n';
+import { sideName } from './names';
 
-const sideName = (c: Color) => (c === 'white' ? 'White' : 'Black');
 
 function canRetry(m: MoveReview, myColor: Color | undefined): boolean {
   return ERROR_CLASSES.has(m.assessment.classification) && m.assessment.classification !== 'inaccuracy' && (!myColor || m.color === myColor);
@@ -35,7 +37,7 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
     const { line, index } = lineView;
     return (
       <section className="coach" aria-live="polite">
-        <p className="coach-kicker">Exploring a line</p>
+        <p className="coach-kicker">{t('coach.exploringLine')}</p>
         <h2 className="coach-title">{line.label}</h2>
         <p className="coach-line">
           {line.moves.map((m, i) => (
@@ -45,12 +47,12 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
           ))}
         </p>
         <div className="coach-actions">
-          <button onClick={() => stepLine(-1)} disabled={index === 0}>Back</button>
-          <button className="primary" onClick={() => stepLine(1)} disabled={index >= line.moves.length}>Next move</button>
+          <button onClick={() => stepLine(-1)} disabled={index === 0}>{t('coach.back')}</button>
+          <button className="primary" onClick={() => stepLine(1)} disabled={index >= line.moves.length}>{t('common.nextMove')}</button>
           <button onClick={toggleAutoplay} aria-pressed={lineView.playing}>
-            {lineView.playing ? 'Pause' : index >= line.moves.length ? 'Replay' : 'Play'}
+            {lineView.playing ? t('common.pause') : index >= line.moves.length ? t('coach.replay') : t('coach.play')}
           </button>
-          <button onClick={closeLine}>Return to the game</button>
+          <button onClick={closeLine}>{t('coach.returnToGame')}</button>
         </div>
       </section>
     );
@@ -62,24 +64,24 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
     const best = m.bestLine[0];
     return (
       <section className="coach coach-retry" aria-live="polite">
-        <p className="coach-kicker">Find a better move</p>
+        <p className="coach-kicker">{t('coach.retry.kicker')}</p>
         <h2 className="coach-title">
-          {sideName(m.color)} to play. {myColor === m.color ? 'You' : sideName(m.color)} played {m.san}; can you find better?
+          {myColor === m.color ? t('coach.retry.titleYou', { side: sideName(m.color), san: m.san }) : t('coach.retry.title', { side: sideName(m.color), san: m.san })}
         </h2>
-        {retry.status === 'judging' && <p className="coach-summary">Checking your move…</p>}
+        {retry.status === 'judging' && <p className="coach-summary">{t('common.checking')}</p>}
         {v && v.result === 'solved' && (
           <p className="coach-summary verdict-good">
-            {v.san} works. Your winning chances stay at {Math.round(v.winAfter)}% instead of {Math.round(m.assessment.winAfter)}% after {m.san}.
+            {t('coach.retry.solved', { san: v.san, after: Math.round(v.winAfter), played: Math.round(m.assessment.winAfter), playedSan: m.san })}
           </p>
         )}
         {v && v.result === 'close' && retry.status === 'solving' && (
           <p className="coach-summary verdict-close">
-            {v.san} is close (−{Math.round(v.winLoss)}%), but there is something stronger. Try again.
+            {t('coach.retry.close', { san: v.san, loss: Math.round(v.winLoss) })}
           </p>
         )}
         {v && v.result === 'wrong' && retry.status === 'solving' && (
           <p className="coach-summary verdict-bad">
-            {v.san} does not work: {v.refutation.length > 0 ? `${formatLine(v.refutation, 4)}` : 'the position gets worse'} (winning chances {Math.round(v.winAfter)}%). Try again.
+            {t('coach.retry.wrong', { san: v.san, why: v.refutation.length > 0 ? formatLine(v.refutation, 4) : t('coach.retry.worse'), after: Math.round(v.winAfter) })}
           </p>
         )}
         {v && v.result !== 'solved' && retry.status === 'solving' && v.explanation && (
@@ -90,26 +92,26 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
             .slice(0, hintsShown)
             .map((h, i) => (
               <p key={i} className="hint-line">
-                <strong>Hint {i + 1}.</strong> {h.text}
+                <strong>{t('common.hintN', { n: i + 1 })}</strong> {h.text}
               </p>
             ))}
-        {retry.status === 'solving' && !v && <p className="coach-summary">Play a move on the board.</p>}
+        {retry.status === 'solving' && !v && <p className="coach-summary">{t('coach.retry.play')}</p>}
         <div className="coach-actions">
-          {retry.status === 'solving' && hintsShown < 3 && <button onClick={showHint}>Hint</button>}
+          {retry.status === 'solving' && hintsShown < 3 && <button onClick={showHint}>{t('common.hint')}</button>}
           {retry.status !== 'done' && best && (
-            <button onClick={() => showLine({ label: `Solution: ${best.san}`, fen: m.bestLine[0]!.fenBefore, moves: m.bestLine.slice(0, 8) })}>
-              Show the solution
+            <button onClick={() => showLine({ label: t('coach.retry.solutionLabel', { san: best.san }), fen: m.bestLine[0]!.fenBefore, moves: m.bestLine.slice(0, 8) })}>
+              {t('coach.retry.showSolution')}
             </button>
           )}
           {retry.status === 'done' && best && (
-            <button onClick={() => void startPlayout(retry.moveIndex)}>Play on against Maia</button>
+            <button onClick={() => void startPlayout(retry.moveIndex)}>{t('coach.retry.playOn')}</button>
           )}
           {retry.status === 'done' && best && (
-            <button className="primary" onClick={() => showLine({ label: `Best line: ${best.san}`, fen: best.fenBefore, moves: m.bestLine.slice(0, 8) })}>
-              Play the best line
+            <button className="primary" onClick={() => showLine({ label: t('explain.line.best', { san: best.san }), fen: best.fenBefore, moves: m.bestLine.slice(0, 8) })}>
+              {t('coach.retry.playBest')}
             </button>
           )}
-          <button onClick={endRetry}>Back to the review</button>
+          <button onClick={endRetry}>{t('common.backToReview')}</button>
         </div>
       </section>
     );
@@ -119,12 +121,12 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
     const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
     return (
       <section className="coach" aria-live="polite">
-        <p className="coach-kicker">Analysing</p>
-        <h2 className="coach-title">Stockfish is reviewing every move…</h2>
+        <p className="coach-kicker">{t('coach.analysing')}</p>
+        <h2 className="coach-title">{t('coach.analysingTitle')}</h2>
         <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
           <div className="progress-fill" style={{ width: `${pct}%` }} />
         </div>
-        <p className="coach-summary muted">{progress ? `${progress.done} of ${progress.total} positions` : 'Starting the engine…'}</p>
+        <p className="coach-summary muted">{progress ? t('coach.analysingProgress', { done: progress.done, total: progress.total }) : t('coach.starting')}</p>
       </section>
     );
   }
@@ -132,7 +134,7 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
   const refining =
     progress?.phase === 'refining' ? (
       <p className="refining" role="status">
-        Checking the critical moments more deeply… {progress.done}/{progress.total}
+        {t('coach.refining', { done: progress.done, total: progress.total })}
       </p>
     ) : null;
   const moments = keyMoments(review, myColor);
@@ -144,8 +146,8 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
     return (
       <section className="coach">
         {refining}
-        <p className="coach-kicker">Game summary</p>
-        <h2 className="coach-title">{review.opening ? review.opening.name : 'Review ready'}</h2>
+        <p className="coach-kicker">{t('coach.summary')}</p>
+        <h2 className="coach-title">{review.opening ? review.opening.name : t('coach.ready')}</h2>
         {review.summary?.opening && <p className="coach-detail">{review.summary.opening}</p>}
         {(myColor ? [myColor] : (['white', 'black'] as const)).map((c) => (
           <div key={c} className="coach-summary-text">
@@ -162,11 +164,11 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
             return (
               <div key={c} className={`summary-side${myColor === c ? ' is-me' : ''}`}>
                 <div className="summary-name">{c === 'white' ? game.white.name : game.black.name}</div>
-                <div className="summary-acc">{acc !== undefined ? acc.toFixed(1) : '–'}<small>accuracy</small></div>
+                <div className="summary-acc">{acc !== undefined ? num(acc, 1) : '–'}<small>{t('common.accuracy')}</small></div>
                 <ul className="summary-counts">
                   {SUMMARY_ORDER.filter((k) => counts[k] > 0).map((k) => (
                     <li key={k}>
-                      <ClassBadge c={k} /> <span>{counts[k]}</span> <span className="muted">{CLASS_META[k].label}</span>
+                      <ClassBadge c={k} /> <span>{counts[k]}</span> <span className="muted">{classLabel(k)}</span>
                     </li>
                   ))}
                 </ul>
@@ -177,19 +179,19 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
         <div className="coach-actions">
           {moments[0] && (
             <button className="primary" onClick={() => goTo(indexOf(moments[0]!) + 1)}>
-              Start with the key moments ({moments.length})
+              {t('coach.keyMoments', { n: moments.length })}
             </button>
           )}
-          <button onClick={() => goTo(1)}>Go through every move</button>
+          <button onClick={() => goTo(1)}>{t('coach.everyMove')}</button>
           {review.settings.multiPv < 3 && !progress && (
-            <button onClick={() => void openGame(game, { force: true, profile: 'deep' })}>Deep analysis</button>
+            <button onClick={() => void openGame(game, { force: true, profile: 'deep' })}>{t('coach.deep')}</button>
           )}
         </div>
         <p className="coach-meta muted">
-          Stockfish depth {review.settings.depth}
-          {review.evals.some((e) => e.source === 'tablebase') ? ' · tablebase endgame' : ''}
-          {review.evals.some((e) => e.source === 'cloud') ? ' · Lichess cloud for the opening' : ''}
-          {settings.profile === 'deep' || review.settings.multiPv >= 3 ? ' · deep profile' : ''}
+          {t('coach.meta.depth', { depth: review.settings.depth })}
+          {review.evals.some((e) => e.source === 'tablebase') ? ` · ${t('coach.meta.tablebase')}` : ''}
+          {review.evals.some((e) => e.source === 'cloud') ? ` · ${t('coach.meta.cloud')}` : ''}
+          {settings.profile === 'deep' || review.settings.multiPv >= 3 ? ` · ${t('coach.meta.deep')}` : ''}
         </p>
       </section>
     );
@@ -205,26 +207,26 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
     <section className="coach" aria-live="polite">
       {refining}
       <p className="coach-kicker">
-        <ClassBadge c={m.assessment.classification} size="md" /> {CLASS_META[m.assessment.classification].label}
-        {m.isKeyMoment ? <span className="tag">Key moment</span> : null}
-        {m.errorKind ? <span className="tag">{m.errorKind}</span> : null}
-        {m.timeTrouble ? <span className="tag tag-warn">time trouble</span> : null}
+        <ClassBadge c={m.assessment.classification} size="md" /> {classLabel(m.assessment.classification)}
+        {m.isKeyMoment ? <span className="tag">{t('coach.tag.key')}</span> : null}
+        {m.errorKind ? <span className="tag">{t(`coach.tag.${m.errorKind}`)}</span> : null}
+        {m.timeTrouble ? <span className="tag tag-warn">{t('coach.tag.timeTrouble')}</span> : null}
       </p>
       <h2 className="coach-title">{ex.title}</h2>
       {llm && <LlmCoach moveIndex={cursor - 1} />}
-      {llm && <p className="coach-kicker small-kicker">Engine facts</p>}
+      {llm && <p className="coach-kicker small-kicker">{t('coach.engineFacts')}</p>}
       <p className="coach-summary">{ex.summary}</p>
       {ex.details.map((d, i) => (
         <p key={i} className="coach-detail">{d}</p>
       ))}
       {ex.better && (
         <p className="coach-better">
-          <strong>Better: {ex.better.san}.</strong> {ex.better.text}
+          <strong>{t('pgn.better', { san: ex.better.san })}</strong> {ex.better.text}
         </p>
       )}
       {ex.lesson && !llm && (
         <p className="coach-lesson">
-          <strong>Lesson.</strong> {ex.lesson}
+          <strong>{t('common.lesson')}</strong> {ex.lesson}
         </p>
       )}
       {beginner && glossaryFor(m.facts).map((g) => (
@@ -238,11 +240,11 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
       )}
       <div className="coach-actions">
         {canRetry(m, myColor) && (
-          <button className="primary" onClick={() => startRetry(cursor - 1)}>Retry this move</button>
+          <button className="primary" onClick={() => startRetry(cursor - 1)}>{t('coach.retryMove')}</button>
         )}
         {drillHere && (
           <button onClick={() => void practiseEndgame(drillHere.id)}>
-            {drillHere.goal === 'win' ? 'Practise converting this endgame' : 'Practise holding this endgame'}
+            {drillHere.goal === 'win' ? t('coach.drill.win') : t('coach.drill.draw')}
           </button>
         )}
         {ex.lines.map((l, i) => (
@@ -250,14 +252,14 @@ export function CoachPanel({ game, review }: { game: Game; review?: GameReview }
         ))}
       </div>
       <div className="coach-nav">
-        <button onClick={() => prevMoment && goTo(indexOf(prevMoment) + 1)} disabled={!prevMoment}>← Previous key moment</button>
-        <button onClick={() => nextMoment && goTo(indexOf(nextMoment) + 1)} disabled={!nextMoment}>Next key moment →</button>
+        <button onClick={() => prevMoment && goTo(indexOf(prevMoment) + 1)} disabled={!prevMoment}>{t('coach.prevKey')}</button>
+        <button onClick={() => nextMoment && goTo(indexOf(nextMoment) + 1)} disabled={!nextMoment}>{t('coach.nextKey')}</button>
       </div>
       <p className="coach-meta muted">
-        Winning chances {Math.round(m.assessment.winBefore)}% → {Math.round(m.assessment.winAfter)}% for {sideName(m.color)}
-        {m.assessment.confidence === 'low' ? ' · low engine confidence' : ''}
-        {m.timeSpentMs !== undefined ? ` · ${formatClock(m.timeSpentMs)} spent` : ''}
-        {m.clockMs !== undefined ? `, ${formatClock(m.clockMs)} left` : ''}
+        {t('coach.meta.chances', { before: Math.round(m.assessment.winBefore), after: Math.round(m.assessment.winAfter), side: sideName(m.color) })}
+        {m.assessment.confidence === 'low' ? ` · ${t('coach.meta.lowConfidence')}` : ''}
+        {m.timeSpentMs !== undefined ? ` · ${t('coach.meta.spent', { clock: formatClock(m.timeSpentMs) })}` : ''}
+        {m.clockMs !== undefined ? `, ${t('coach.meta.left', { clock: formatClock(m.clockMs) })}` : ''}
       </p>
     </section>
   );

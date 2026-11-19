@@ -2,6 +2,7 @@ import { useStore } from '../app/store';
 import { epdOf } from '../core/chess';
 import type { ExplorerResult } from '../core/explorer';
 import { myChoicesAt } from '../core/repertoire';
+import { num, t } from '../i18n';
 
 /**
  * Opening context for a move: what you played here in your other games, and
@@ -14,13 +15,13 @@ export function OpeningPanel({ fen, playedUci, isMine, gameId }: { fen: string; 
 
   const block = (source: 'masters' | 'lichess') => {
     const r = explorer[`${source}|${epdOf(fen)}`];
-    const title = source === 'masters' ? 'Masters' : 'Players at your level';
+    const title = source === 'masters' ? t('explorer.masters') : t('explorer.level');
     if (!r) return null;
-    if (r === 'loading') return <p className="muted small">Loading {title.toLowerCase()}…</p>;
+    if (r === 'loading') return <p className="muted small">{t('explorer.loading', { title: title.toLowerCase() })}</p>;
     if ('error' in r) {
       return r.auth ? (
         <p className="small">
-          The opening explorer needs a Lichess login. <button className="link" onClick={() => void connectLichess()}>Connect Lichess</button>
+          {t('explorer.needLogin')} <button className="link" onClick={() => void connectLichess()}>{t('settings.connectLichess')}</button>
         </p>
       ) : (
         <p className="muted small">{r.error}</p>
@@ -33,7 +34,7 @@ export function OpeningPanel({ fen, playedUci, isMine, gameId }: { fen: string; 
     <div className="opening-panel">
       {choices.length > 0 && (
         <p className="small">
-          <strong>In your other games here</strong> you played{' '}
+          <strong>{t('explorer.mine')}</strong> {t('explorer.youPlayed')}{' '}
           {choices.slice(0, 3).map((c, i) => (
             <span key={c.san} className={c.uci === playedUci ? 'is-played' : ''}>
               {i ? ', ' : ''}
@@ -46,12 +47,12 @@ export function OpeningPanel({ fen, playedUci, isMine, gameId }: { fen: string; 
       <div className="coach-actions">
         {settings.lichessToken ? (
           <>
-            <button className="small-button" onClick={() => void loadExplorer(fen, 'masters')}>Masters</button>
-            <button className="small-button" onClick={() => void loadExplorer(fen, 'lichess')}>Players at your level</button>
+            <button className="small-button" onClick={() => void loadExplorer(fen, 'masters')}>{t('explorer.masters')}</button>
+            <button className="small-button" onClick={() => void loadExplorer(fen, 'lichess')}>{t('explorer.level')}</button>
           </>
         ) : (
           <button className="link small" onClick={() => void connectLichess()}>
-            Connect Lichess to see what masters and players at your level play here
+            {t('explorer.connect')}
           </button>
         )}
       </div>
@@ -62,17 +63,17 @@ export function OpeningPanel({ fen, playedUci, isMine, gameId }: { fen: string; 
 }
 
 function ExplorerTable({ title, result, playedUci }: { title: string; result: ExplorerResult; playedUci: string }) {
-  if (result.total === 0) return <p className="muted small">{title}: no games from this position.</p>;
+  if (result.total === 0) return <p className="muted small">{t('explorer.empty', { title })}</p>;
   return (
     <table className="table explorer">
       <caption className="small">
-        {title} · {result.total.toLocaleString('en')} games{result.opening ? ` · ${result.opening.name}` : ''}
+        {title} · {t('explorer.games', { count: result.total, n: num(result.total) })}{result.opening ? ` · ${result.opening.name}` : ''}
       </caption>
       <thead>
         <tr>
-          <th>Move</th>
-          <th className="num">Games</th>
-          <th>White / draw / Black</th>
+          <th>{t('explorer.col.move')}</th>
+          <th className="num">{t('explorer.col.games')}</th>
+          <th>{t('explorer.col.wdl')}</th>
         </tr>
       </thead>
       <tbody>
@@ -84,7 +85,7 @@ function ExplorerTable({ title, result, playedUci }: { title: string; result: Ex
               <td>{m.san}</td>
               <td className="num">{Math.round((100 * m.total) / result.total)}%</td>
               <td>
-                <span className="wdl" title={`White ${Math.round(w)}% · draws ${Math.round(d)}% · Black ${Math.round(100 - w - d)}%`}>
+                <span className="wdl" title={t('explorer.wdl', { w: Math.round(w), d: Math.round(d), b: Math.round(100 - w - d) })}>
                   <span className="wdl-w" style={{ width: `${w}%` }} />
                   <span className="wdl-d" style={{ width: `${d}%` }} />
                   <span className="wdl-b" />

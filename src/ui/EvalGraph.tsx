@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { MoveReview } from '../core/review';
+import { t } from '../i18n';
 
 interface Props {
   /** White win % per position (undefined while not analysed yet). */
@@ -39,7 +40,7 @@ export function EvalGraph({ wins, total, moves, cursor, onSelect }: Props) {
   };
 
   return (
-    <svg className="evalgraph" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" onClick={pick} role="img" aria-label="Evaluation graph: White's winning chances over the game">
+    <svg className="evalgraph" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" onClick={pick} role="img" aria-label={t('evalgraph.label')}>
       <rect className="evalgraph-bg" x="0" y="0" width={W} height={H} />
       <path className="evalgraph-area" d={area} />
       <line className="evalgraph-mid" x1="0" x2={W} y1={H / 2} y2={H / 2} />

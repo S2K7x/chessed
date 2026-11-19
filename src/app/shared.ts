@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { UciEngine } from '../core/engine';
 import type { Color } from '../core/eval';
 import type { Game } from '../core/game';
@@ -33,9 +34,9 @@ export const errorText = (err: unknown): string => {
   if (err instanceof TypeError) {
     // A lazily loaded part of the app (offline, or the local server stopped).
     if (/dynamically imported module|importing a module script/i.test(err.message)) {
-      return 'Part of the app could not be loaded. Check your connection (or that Chess Coach is still running), then reload the page.';
+      return t('error.chunk');
     }
-    return 'Network error: the game could not be downloaded. Check your connection, or paste the PGN.';
+    return t('error.network');
   }
   return err instanceof Error ? err.message : String(err);
 };

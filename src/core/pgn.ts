@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { makePgn, parsePgn, parseComment, startingPosition, type PgnNodeData, type Game as PgnGame } from 'chessops/pgn';
 import { parseSan, makeSan } from 'chessops/san';
 import { makeUci } from 'chessops/util';
@@ -51,7 +52,7 @@ export function parseGamesReport(pgn: string, opts: ParseOptions = {}): { games:
     try {
       const game = toGame(g, opts);
       if (game.moves.length > 0) games.push(game);
-      else if (raw.length > 1) skipped.push({ index: i + 1, ...(players ? { players } : {}), reason: 'No moves.' });
+      else if (raw.length > 1) skipped.push({ index: i + 1, ...(players ? { players } : {}), reason: t('pgn.noMoves') });
     } catch (err) {
       skipped.push({ index: i + 1, ...(players ? { players } : {}), reason: err instanceof Error ? err.message : String(err) });
     }
@@ -62,7 +63,7 @@ export function parseGamesReport(pgn: string, opts: ParseOptions = {}): { games:
 export function parseGames(pgn: string, opts: ParseOptions = {}): Game[] {
   const { games, skipped } = parseGamesReport(pgn, opts);
   if (games.length === 0) {
-    throw new PgnError(skipped[0]?.reason ?? 'No game with moves was found in this PGN.');
+    throw new PgnError(skipped[0]?.reason ?? t('pgn.noGame'));
   }
   return games;
 }
@@ -71,14 +72,14 @@ export function parseGames(pgn: string, opts: ParseOptions = {}): Game[] {
 export function skippedText(skipped: readonly SkippedGame[], read: number): string | undefined {
   if (skipped.length === 0) return undefined;
   const first = skipped[0]!;
-  const which = `game ${first.index}${first.players ? ` (${first.players})` : ''}: ${first.reason}`;
-  const more = skipped.length > 1 ? ` and ${skipped.length - 1} more` : '';
-  return `${read} game${read === 1 ? '' : 's'} imported; ${skipped.length} could not be read (${which}${more}).`;
+  const which = t('pgn.skipped.which', { index: first.index, players: first.players ? ` (${first.players})` : '', reason: first.reason });
+  const more = skipped.length > 1 ? t('pgn.skipped.more', { n: skipped.length - 1 }) : '';
+  return t('pgn.skipped', { count: read, n: skipped.length, which: `${which}${more}` });
 }
 
 export function parseGame(pgn: string, opts: ParseOptions = {}): Game {
   const first = parseGames(pgn, opts)[0];
-  if (!first) throw new PgnError('No game found.');
+  if (!first) throw new PgnError(t('pgn.none'));
   return first;
 }
 
@@ -100,7 +101,7 @@ function isoDate(v: string | undefined): string | undefined {
 
 function toGame(g: PgnGame<PgnNodeData>, opts: ParseOptions): Game {
   const start = startingPosition(g.headers);
-  if (start.isErr) throw new PgnError(`Invalid starting position: ${start.error.message}`);
+  if (start.isErr) throw new PgnError(t('pgn.badStart', { reason: start.error.message }));
   const pos = start.value;
   const startFen = fenOf(pos);
   const moves: GameMove[] = [];
@@ -109,7 +110,7 @@ function toGame(g: PgnGame<PgnNodeData>, opts: ParseOptions): Game {
     const move = parseSan(pos, node.san);
     if (!move) {
       const label = `${Math.ceil(ply / 2)}${ply % 2 === 1 ? '.' : '...'}`;
-      throw new PgnError(`Illegal or unreadable move ${label} ${node.san}.`);
+      throw new PgnError(t('pgn.badMove', { move: `${label} ${node.san}` }));
     }
     const fenBefore = fenOf(pos);
     const color = pos.turn;

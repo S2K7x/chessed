@@ -18,6 +18,9 @@ import {
   type GameReview,
 } from '../core/review';
 import { lichessRemote } from '../core/remote';
+import { localizeMove, localizeReview } from '../core/review';
+import { getLocale, loadLocale, setLocale, t, type Locale } from '../i18n';
+import { saveLocale } from './locale';
 import { positionFromFen, replayUci, terminalOf, type SanMove } from '../core/chess';
 import { clampMaiaElo, humanMoves, maiaMove } from '../engine/maia';
 import { coachExplanation, coachLevel, type CoachResult } from './coach';
@@ -90,6 +93,8 @@ export interface LineView {
 
 interface State {
   view: View;
+  /** Language of the interface and of the explanations. */
+  locale: Locale;
   settings: Settings;
   library: Game[];
   /** Games of the list loaded so far (pages of LIBRARY_PAGE, newest first). */
@@ -221,6 +226,8 @@ interface Actions {
   exportAnnotatedPgn(): void;
   connectLichess(): Promise<void>;
   disconnectLichess(): Promise<void>;
+  /** Switches the interface language (saved for the next visits). */
+  setLanguage(locale: Locale): Promise<void>;
 }
 
 const LEVEL_ELO = { beginner: 1000, intermediate: 1500, advanced: 2000 } as const;
@@ -231,10 +238,10 @@ async function maiaReply(): Promise<void> {
   if (!playout) return;
   const over = (fen: string) => terminalOf(positionFromFen(fen));
   const finish = (fen: string) => {
-    const t = over(fen);
-    if (!t) return false;
+    const end = over(fen);
+    if (!end) return false;
     const pos = positionFromFen(fen);
-    const result = t === 'checkmate' ? (pos.turn === playout.userColor ? 'Maia wins by checkmate.' : 'Checkmate: you win!') : 'Draw.';
+    const result = end === 'checkmate' ? (pos.turn === playout.userColor ? t('playout.maiaWins') : t('playout.youWin')) : t('playout.draw');
     useStore.setState({ playout: { ...useStore.getState().playout!, status: 'over', result } });
     return true;
   };
@@ -244,7 +251,7 @@ async function maiaReply(): Promise<void> {
     const current = useStore.getState().playout;
     if (!current || current.fen !== playout.fen) return;
     const [m] = replayUci(current.fen, [uci]);
-    if (!m) throw new Error('Maia suggested an illegal move.');
+    if (!m) throw new Error(t('playout.illegal'));
     useStore.setState({
       playout: {
         ...current,
@@ -257,7 +264,7 @@ async function maiaReply(): Promise<void> {
     });
     finish(m.fenAfter);
   } catch (err) {
-    useStore.setState({ error: `Maia could not play: ${errorText(err)}`, playout: undefined });
+    useStore.setState({ error: t('playout.failed', { reason: errorText(err) }), playout: undefined });
   }
 }
 
@@ -321,6 +328,7 @@ export type Store = State & Actions & WoodpeckerSlice & EndgamesSlice & Openings
 
 export const useStore = create<Store>()((set, get, api) => ({
   view: 'home',
+  locale: getLocale(),
   settings: DEFAULT_APP_SETTINGS,
   library: [],
   libraryLimit: LIBRARY_PAGE,
@@ -400,7 +408,7 @@ export const useStore = create<Store>()((set, get, api) => ({
     set({ busy: true, error: undefined });
     try {
       const { games, skipped } = parseGamesReport(await file.text());
-      if (games.length === 0) throw new PgnError(skipped[0]?.reason ?? 'No game with moves was found in this file.');
+      if (games.length === 0) throw new PgnError(skipped[0]?.reason ?? t('import.noGameInFile'));
       await importParsed(games, skipped);
     } catch (err) {
       set({ error: errorText(err) });
@@ -445,7 +453,7 @@ export const useStore = create<Store>()((set, get, api) => ({
       s.depth >= analysisSettings.depth &&
       s.multiPv >= analysisSettings.multiPv
     ) {
-      set({ review: stored.review, progress: undefined, liveWins: stored.review.whiteWins });
+      set({ review: localizeReview(stored.review, game), progress: undefined, liveWins: stored.review.whiteWins });
       return;
     }
 
@@ -488,7 +496,7 @@ export const useStore = create<Store>()((set, get, api) => ({
     } catch (err) {
       if (!stillCurrent()) return;
       if (err instanceof Error && err.message === 'cancelled') return;
-      set({ error: `Analysis failed: ${errorText(err)}`, progress: undefined });
+      set({ error: t('analysis.failed', { reason: errorText(err) }), progress: undefined });
     }
   },
 
@@ -496,7 +504,7 @@ export const useStore = create<Store>()((set, get, api) => ({
     const s = get().settings;
     const username = platform === 'lichess' ? s.lichessUsername : s.chesscomUsername;
     if (!username.trim()) {
-      set({ error: `Add your ${platform === 'lichess' ? 'Lichess' : 'Chess.com'} username in Settings first.` });
+      set({ error: t('recent.needUser', { site: platform === 'lichess' ? 'Lichess' : 'Chess.com' }) });
       return;
     }
     set({ recent: { platform, games: [], loading: true }, error: undefined });
@@ -716,7 +724,7 @@ export const useStore = create<Store>()((set, get, api) => ({
         continue;
       }
       if (review.classifierVersion !== CLASSIFIER_VERSION) outdated++;
-      entries.push({ game, review, color });
+      entries.push({ game, review: localizeReview(review, game), color });
     }
     set({ profile: { data: computeProfile(entries), outdated, withoutMe }, repertoire: buildRepertoire(entries), activity: await db.activity.toArray() });
   },
@@ -828,7 +836,7 @@ export const useStore = create<Store>()((set, get, api) => ({
         set({ reanalysis: { done: i + 1, total: todo.length } });
       }
     } catch (err) {
-      set({ error: `Re-analysis stopped: ${errorText(err)}` });
+      set({ error: t('reanalysis.stopped', { reason: errorText(err) }) });
     } finally {
       engine.dispose();
       set({ reanalysis: undefined });
@@ -883,8 +891,8 @@ export const useStore = create<Store>()((set, get, api) => ({
       batchEngine = undefined;
       batchAbort = undefined;
       set({ batch: undefined, library: await refreshLibrary() });
-      if (engineError) set({ error: `Analysis stopped: ${engineError}` });
-      else if (failed) set({ error: `${failed} game${failed > 1 ? 's' : ''} could not be analysed.` });
+      if (engineError) set({ error: t('batch.stopped', { reason: engineError }) });
+      else if (failed) set({ error: t('batch.failed', { count: failed }) });
       void get().refreshDueCount();
     }
   },
@@ -909,7 +917,7 @@ export const useStore = create<Store>()((set, get, api) => ({
       const n = await importAll(await file.text());
       set({ library: await refreshLibrary(), error: undefined });
       void get().refreshDueCount();
-      window.alert(`${n} games imported.`);
+      window.alert(t('backup.imported', { count: n }));
     } catch (err) {
       set({ error: errorText(err) });
     }
@@ -938,6 +946,22 @@ export const useStore = create<Store>()((set, get, api) => ({
     await get().updateSettings({ lichessToken: '' });
     set({ explorer: {} });
   },
+  async setLanguage(locale) {
+    await loadLocale(locale);
+    setLocale(locale);
+    saveLocale(locale);
+    // Texts already on screen were written in the previous language: write them again.
+    const { game, review, training, woodpecker } = get();
+    const relocalize = (m: MoveReview, g: Game, index: number) => localizeMove(m, g.moves[index]);
+    set({
+      locale,
+      coachTexts: {},
+      ...(game && review ? { review: localizeReview(review, game) } : {}),
+      ...(training?.move && training.game ? { training: { ...training, move: relocalize(training.move, training.game, training.queue[training.index]?.moveIndex ?? -1) } } : {}),
+      ...(woodpecker?.item ? { woodpecker: { ...woodpecker, item: { ...woodpecker.item, move: relocalize(woodpecker.item.move, woodpecker.item.game, woodpecker.item.ex.moveIndex) } } } : {}),
+    });
+  },
+
   toggleThreats() {
     set({ showThreats: !get().showThreats });
   },
@@ -998,7 +1022,7 @@ async function loadTrainingItem(index: number): Promise<void> {
   const ex = t?.queue[index];
   if (!t || !ex) return;
   const [game, stored] = await Promise.all([db.games.get(ex.gameId), db.reviews.get(ex.gameId)]);
-  const move = stored?.review.moves[ex.moveIndex];
+  const move = stored && game ? localizeReview(stored.review, game).moves[ex.moveIndex] : undefined;
   // A threat card starts after the player's move: the opponent's turn.
   const evalBefore = stored?.review.evals[ex.kind === 'threat' ? ex.moveIndex + 1 : ex.moveIndex];
   const cur = useStore.getState().training;

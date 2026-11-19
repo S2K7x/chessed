@@ -1,3 +1,4 @@
+import { t } from '../../i18n';
 import type { StateCreator } from 'zustand';
 import type { Store } from '../store';
 import { epdOf, replayUci, type SanMove } from '../../core/chess';
@@ -77,7 +78,7 @@ function advanceOpening(s: OpeningSession): OpeningSession {
   const tree = openingTrees![s.color];
   let cur = s;
   for (;;) {
-    if (cur.line.length >= TRAINER_MAX_PLY) return { ...cur, status: 'end', endReason: 'Line complete: you know it up to move 8.' };
+    if (cur.line.length >= TRAINER_MAX_PLY) return { ...cur, status: 'end', endReason: t('openings.end.complete') };
     const node = tree.get(epdOf(cur.fen));
     const turn = cur.fen.split(' ')[1] === 'w' ? 'white' : 'black';
     if (turn === cur.color) {
@@ -86,8 +87,8 @@ function advanceOpening(s: OpeningSession): OpeningSession {
             ...cur,
             status: 'end',
             endReason: cur.against
-              ? `You have never had this position in your games: this is where to prepare a move against ${cur.against}.`
-              : 'End of your games in this line: you have not had this position yet.',
+              ? t('openings.end.prepare', { name: cur.against })
+              : t('openings.end.new'),
           };
         }
         return { ...cur, status: 'your-move' };
@@ -95,7 +96,7 @@ function advanceOpening(s: OpeningSession): OpeningSession {
       const reply = node ? pickReply(tree, node, cur.color, openingStats) : undefined;
       const [m] = reply ? replayUci(cur.fen, [reply.uci]) : [];
       if (!m) {
-        return { ...cur, status: 'end', endReason: cur.against ? `${cur.against} never reached this position in their games.` : 'End of your games in this line.' };
+        return { ...cur, status: 'end', endReason: cur.against ? t('openings.end.theyNever', { name: cur.against }) : t('openings.end.games') };
       }
       cur = { ...cur, fen: m.fenAfter, line: [...cur.line, m] };
     }
@@ -150,7 +151,9 @@ function advanceOpening(s: OpeningSession): OpeningSession {
       const [played] = replayUci(s.fen, [uci]);
       if (!exp || !played || !node) return;
       const right = exp.accepted.has(uci);
-      await recordOpening(s.color, node.epd, right);
+      // The board moves on at once; the statistics are saved after. Awaiting the
+      // database first dropped a move typed right after this one (still the old position).
+      void recordOpening(s.color, node.epd, right).catch(() => undefined);
       void get().logActivity({ positions: 1 });
       if (right) {
         const next = advanceOpening({ ...s, fen: played.fenAfter, line: [...s.line, played], right: s.right + 1, last: { san: played.san, right: true }, expected: undefined });

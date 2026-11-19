@@ -6,8 +6,10 @@ import { Board } from './Board';
 import { useBlindfold } from './Blindfold';
 import { ClassBadge } from './ClassBadge';
 import type { Classification } from '../core/classify';
+import { t } from '../i18n';
+import { themeName } from '../core/summary';
+import { sideName } from './names';
 
-const GRADE_TEXT = { easy: 'Easy', good: 'Good', hard: 'Hard', again: 'To review again soon' } as const;
 
 /** Daily review of the player's own mistakes (spaced repetition). */
 export function TrainingView() {
@@ -47,47 +49,47 @@ export function TrainingView() {
     return (
       <div className="training-hub">
         <header className="hub-header">
-          <h1>Training</h1>
-          <p className="muted">Six ways to turn your games into skill. Everything runs on your device.</p>
+          <h1>{t('nav.training')}</h1>
+          <p className="muted">{t('training.intro')}</p>
           <Goal done={today?.positions ?? 0} goal={settings.dailyGoal} />
         </header>
         <section className="mode-card">
-          <p className="mode-kicker">Spaced review</p>
-          <h2>Your mistakes</h2>
-          <p>Your mistakes come back as positions to solve, spaced out over days so that you remember the idea.</p>
+          <p className="mode-kicker">{t('training.mistakes.kicker')}</p>
+          <h2>{t('training.mistakes.title')}</h2>
+          <p>{t('training.mistakes.text')}</p>
           <button className="primary" onClick={() => void startTraining()} disabled={dueCount === 0}>
-            {dueCount > 0 ? `Review ${Math.min(10, dueCount)} positions` : 'Nothing due today'}
+            {dueCount > 0 ? t('training.mistakes.start', { count: Math.min(10, dueCount) }) : t('training.mistakes.none')}
           </button>
         </section>
         <section className="mode-card">
-          <p className="mode-kicker">Speed</p>
-          <h2>Woodpecker</h2>
-          <p>Solve the same set of your positions in cycles, each one faster than the last, until the patterns are automatic.</p>
-          <button onClick={() => void openWoodpecker()}>Open Woodpecker</button>
+          <p className="mode-kicker">{t('training.woodpecker.kicker')}</p>
+          <h2>{t('woodpecker.title')}</h2>
+          <p>{t('training.woodpecker.text')}</p>
+          <button onClick={() => void openWoodpecker()}>{t('training.woodpecker.open')}</button>
         </section>
         <section className="mode-card">
-          <p className="mode-kicker">Technique</p>
-          <h2>Endgames</h2>
-          <p>Play again the endgames you were winning and did not win, or the draws you lost, against Stockfish.</p>
-          <button onClick={() => void openEndgames()}>Open endgames</button>
+          <p className="mode-kicker">{t('training.endgames.kicker')}</p>
+          <h2>{t('endgames.title')}</h2>
+          <p>{t('training.endgames.text')}</p>
+          <button onClick={() => void openEndgames()}>{t('training.endgames.open')}</button>
         </section>
         <section className="mode-card">
-          <p className="mode-kicker">Repertoire</p>
-          <h2>Your openings</h2>
-          <p>Replay your openings against the replies your opponents actually chose, and learn the better move where yours was an error.</p>
-          <button onClick={() => void openOpenings()}>Train your openings</button>
+          <p className="mode-kicker">{t('training.openings.kicker')}</p>
+          <h2>{t('openings.title')}</h2>
+          <p>{t('training.openings.text')}</p>
+          <button onClick={() => void openOpenings()}>{t('training.openings.open')}</button>
         </section>
         <section className="mode-card">
-          <p className="mode-kicker">Preparation</p>
-          <h2>Your next opponent</h2>
-          <p>See what an opponent plays with each colour and where they score best and worst, then train your openings against their moves.</p>
-          <button onClick={openOpponent}>Prepare for an opponent</button>
+          <p className="mode-kicker">{t('training.opponent.kicker')}</p>
+          <h2>{t('training.opponent.title')}</h2>
+          <p>{t('training.opponent.text')}</p>
+          <button onClick={openOpponent}>{t('opponent.title')}</button>
         </section>
         <section className="mode-card">
-          <p className="mode-kicker">Understanding</p>
-          <h2>Guess the move</h2>
-          <p>Follow a master game from one side and guess each move. A different move still scores when the engine finds it as good.</p>
-          <button onClick={() => void openGuess()}>Guess the move</button>
+          <p className="mode-kicker">{t('training.guess.kicker')}</p>
+          <h2>{t('guess.title')}</h2>
+          <p>{t('training.guess.text')}</p>
+          <button onClick={() => void openGuess()}>{t('guess.title')}</button>
         </section>
       </div>
     );
@@ -97,18 +99,18 @@ export function TrainingView() {
     const n = training.results.length;
     return (
       <div className="card narrow">
-        <h1>{n ? 'Session done' : 'Nothing to review'}</h1>
+        <h1>{n ? t('training.done') : t('training.nothing')}</h1>
         {n > 0 && (
           <p>
-            {training.results.filter((g) => g !== 'again').length} of {n} positions solved. They will come back when you are about to forget them.
+            {t('training.solved', { solved: training.results.filter((g) => g !== 'again').length, count: n })}
           </p>
         )}
-        {n === 0 && <p className="muted">No position is due. Review more games: each mistake of yours becomes a training position.</p>}
+        {n === 0 && <p className="muted">{t('training.noneDue')}</p>}
         <Goal done={today?.positions ?? 0} goal={settings.dailyGoal} />
         <div className="coach-actions">
-          <button className="primary" onClick={() => setView('progress')}>See your progress</button>
-          {dueCount > 0 && <button onClick={() => void startTraining()}>Another round</button>}
-          <button onClick={endTraining}>Back to training</button>
+          <button className="primary" onClick={() => setView('progress')}>{t('training.seeProgress')}</button>
+          {dueCount > 0 && <button onClick={() => void startTraining()}>{t('training.again')}</button>}
+          <button onClick={endTraining}>{t('common.backToTraining')}</button>
         </div>
       </div>
     );
@@ -124,8 +126,8 @@ export function TrainingView() {
     <div className="training">
       <div className="training-board">
         <p className="muted small">
-          Position {training.index + 1} of {training.queue.length}
-          {ex.theme ? ` · ${ex.theme}` : ''}
+          {t('training.position', { n: training.index + 1, total: training.queue.length })}
+          {ex.theme ? ` · ${themeName(ex.theme)}` : ''}
         </p>
         <Board
           fen={ex.fen}
@@ -137,19 +139,19 @@ export function TrainingView() {
       <aside className="training-side">
         <section className="coach" aria-live="polite">
           <p className="coach-kicker">
-            <ClassBadge c={ex.classification as Classification} /> From your game against {opponent}
+            <ClassBadge c={ex.classification as Classification} /> {t('training.fromGame', { opponent })}
             {game?.date ? ` (${game.date})` : ''}
           </p>
           <h2 className="coach-title">
             {isThreat
-              ? `You played ${ex.playedSan}. Your opponent to move: how do they punish it?`
-              : `${ex.color === 'white' ? 'White' : 'Black'} to play. Find the best move.`}
+              ? t('training.threatTitle', { san: ex.playedSan })
+              : t('common.toPlay', { side: sideName(ex.color) })}
           </h2>
-          {isThreat && <p className="muted small">Blunder check: find your opponent's best reply.</p>}
-          {training.status === 'judging' && <p className="coach-summary">Checking your move…</p>}
+          {isThreat && <p className="muted small">{t('training.blunderCheck')}</p>}
+          {training.status === 'judging' && <p className="coach-summary">{t('common.checking')}</p>}
           {solving && v && v.result !== 'solved' && (
             <p className={`coach-summary ${v.result === 'close' ? 'verdict-close' : 'verdict-bad'}`}>
-              {v.san} {v.result === 'close' ? 'is close, but there is better.' : `does not work: ${formatLine(v.refutation, 4)}.`}
+              {v.result === 'close' ? t('training.close', { san: v.san }) : t('training.wrong', { san: v.san, line: formatLine(v.refutation, 4) })}
               {v.explanation ? ` ${v.explanation.summary}` : ''}
             </p>
           )}
@@ -159,22 +161,22 @@ export function TrainingView() {
               .slice(0, training.hints)
               .map((h, i) => (
                 <p key={i} className="hint-line">
-                  <strong>Hint {i + 1}.</strong> {h.text}
+                  <strong>{t('common.hintN', { n: i + 1 })}</strong> {h.text}
                 </p>
               ))}
           {training.status === 'solved' && (
             <>
               <p className="coach-summary verdict-good">
-                {isThreat ? `Correct: ${v?.san} punishes ${ex.playedSan}.` : `Correct: ${v?.san}. In the game you played ${ex.playedSan}.`}
+                {isThreat ? t('training.correctThreat', { san: v?.san ?? '', played: ex.playedSan }) : t('training.correct', { san: v?.san ?? '', played: ex.playedSan })}
               </p>
-              <p className="muted small">Recorded as: {GRADE_TEXT[training.results[training.results.length - 1] ?? 'good']}.</p>
+              <p className="muted small">{t('training.recorded', { grade: t(`grade.${training.results[training.results.length - 1] ?? 'good'}`) })}</p>
             </>
           )}
           {training.status === 'failed' && (
             <p className="coach-summary">
               {isThreat
-                ? `Your opponent could play ${ex.bestSan}. This position will come back soon.`
-                : `The move was ${ex.bestSan}. In the game you played ${ex.playedSan}. This position will come back soon.`}
+                ? t('training.failedThreat', { san: ex.bestSan })
+                : t('training.failed', { san: ex.bestSan, played: ex.playedSan })}
             </p>
           )}
           {!solving && move && (
@@ -182,22 +184,22 @@ export function TrainingView() {
               <p className="coach-detail">{move.explanation.summary}</p>
               {move.explanation.lesson && (
                 <p className="coach-lesson">
-                  <strong>Lesson.</strong> {move.explanation.lesson}
+                  <strong>{t('common.lesson')}</strong> {move.explanation.lesson}
                 </p>
               )}
             </>
           )}
           {solving && blindfold.controls}
           <div className="coach-actions">
-            {solving && training.hints < 3 && <button onClick={trainingHint}>Hint</button>}
-            {solving && <button onClick={() => void trainingGiveUp()}>Show the answer</button>}
-            <button onClick={endTraining}>Stop</button>
+            {solving && training.hints < 3 && <button onClick={trainingHint}>{t('common.hint')}</button>}
+            {solving && <button onClick={() => void trainingGiveUp()}>{t('training.showAnswer')}</button>}
+            <button onClick={endTraining}>{t('common.stop')}</button>
             {!solving && move && move.bestLine.length > 1 && (
-              <p className="muted small">Best line: {formatLine(move.bestLine, 8)}</p>
+              <p className="muted small">{t('explain.line.best', { san: formatLine(move.bestLine, 8) })}</p>
             )}
             {!solving && (
               <button className="primary" onClick={() => void trainingNext()}>
-                {training.index + 1 < training.queue.length ? 'Next position' : 'Finish'}
+                {training.index + 1 < training.queue.length ? t('common.nextPosition') : t('training.finish')}
               </button>
             )}
           </div>
@@ -210,10 +212,10 @@ export function TrainingView() {
 /** Today's progress towards the daily goal. */
 function Goal({ done, goal }: { done: number; goal: number }) {
   return (
-    <div className="goal" aria-label="Daily goal">
+    <div className="goal" aria-label={t('goal.label')}>
       <span>
-        Today: {Math.min(done, goal)} / {goal} positions
-        {done >= goal ? ' · goal reached' : ''}
+        {t('goal.today', { done: Math.min(done, goal), goal })}
+        {done >= goal ? ` · ${t('goal.reached')}` : ''}
       </span>
       <div className="progress">
         <div className="progress-fill" style={{ width: `${Math.min(100, (100 * done) / goal)}%` }} />

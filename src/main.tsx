@@ -8,12 +8,18 @@ import '@fontsource/instrument-serif/latin-400.css';
 import '@fontsource/instrument-serif/latin-400-italic.css';
 import './ui/styles.css';
 import { App } from './ui/App';
+import { startLocale } from './app/locale';
+import { useStore } from './app/store';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// The language is known before the first render: no flash of the other language.
+void startLocale().then((locale) => {
+  useStore.setState({ locale });
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+});
 
 // Offline support: cache the app, the engine and the Maia model after the first visit.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

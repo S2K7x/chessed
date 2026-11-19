@@ -16,7 +16,8 @@ export default defineConfig({
     timeout: 120_000,
   },
   projects: [
-    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1360, height: 900 } } },
-    { name: 'mobile', use: { ...devices['Pixel 7'] } },
+    // The tests read English text: the browser language is pinned (language.spec.ts covers French).
+    { name: 'desktop', use: { ...devices['Desktop Chrome'], viewport: { width: 1360, height: 900 }, locale: 'en-US' } },
+    { name: 'mobile', use: { ...devices['Pixel 7'], locale: 'en-US' } },
   ],
 });

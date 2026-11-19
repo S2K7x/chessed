@@ -9,16 +9,24 @@ Chess Coach never lets a language model analyse a position. The pipeline is:
    checks, thrown tablebase endgames, structural damage (isolated, doubled
    or conceded passed pawns, weakened king shelter, knight on the rim, early
    queen, undeveloped pieces). Each detector has test positions.
-3. **Templates** (`src/core/explain/`): every fact has an English sentence and
-   a lesson. This text is always available and is what the app shows by default.
+3. **Templates** (`src/core/explain/`): every fact has a sentence and a
+   lesson, in English and French (`src/i18n/en.ts`, `src/i18n/fr.ts`). This
+   text is always available and is what the app shows by default. Reviews are
+   stored with the language of their texts; `localizeReview` writes them again
+   from the stored facts when the language changes (templates only, no engine).
 4. **Language model (optional)**: the fact sheet (`src/core/coach/sheet.ts`)
-   holds the template sentences, the lines, the move's classification and the
-   player's level. The proxy (`proxy/coach.ts`) asks Claude to rewrite it for
+   holds the template sentences, the lines, the move's classification, the
+   player's level and the language (`en` or `fr`); the prompt asks for that
+   language with English move notation. The proxy (`proxy/coach.ts`) asks Claude to rewrite it for
    that level, with a JSON schema for the answer.
 5. **Verification** (`src/core/coach/verify.ts`): the answer is rejected if it
    mentions a move, a square, a piece placement, a percentage or a mate length
    that is not in the sheet, if its headline contradicts the classification, or
-   if it cites no known fact. One retry is made with the list of problems; if it
+   if it cites no known fact. It reads French as well as English: piece names
+   with their square ("cavalier en f3"), "mat en 2", "55 %" and the French
+   classification words (gaffe, erreur, imprécision, coup brillant, meilleur
+   coup); moves written with French piece letters (Cf3, Dxd5) are rejected, so
+   that every move is still checked against the sheet. One retry is made with the list of problems; if it
    still fails, the template text is shown. Accepted texts are cached locally.
 
 ## Levels

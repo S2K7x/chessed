@@ -1,4 +1,5 @@
-import { ROLE_NAMES, positionFromFen, squareIndex } from './chess';
+import { positionFromFen, squareIndex } from './chess';
+import { t } from '../i18n';
 import type { Fact } from './facts';
 import { motifOf } from './facts/motifs';
 import type { MoveReview } from './review';
@@ -15,18 +16,15 @@ export interface Hint {
 function familyHint(m: MoveReview): string {
   const best = m.bestLine[0];
   const f: Fact | undefined = m.facts.find((x) => x.kind === 'mate_missed' || x.kind === 'missed_material');
-  if (f?.kind === 'mate_missed') return `There is a forced checkmate in ${f.mateIn}. Look at every check.`;
+  if (f?.kind === 'mate_missed') return t('hint.mateIn', { n: f.mateIn });
   const pattern = best ? motifOf(best) : undefined;
-  if (pattern) {
-    const name = { fork: 'a fork', skewer: 'a skewer', discovered_attack: 'a discovered attack', double_check: 'a double check' }[pattern.kind];
-    return `Look for ${name}.`;
-  }
-  if (f?.kind === 'missed_material') return f.motif === 'free_capture' ? 'Something can be captured for free.' : 'A forcing sequence wins material. Start with checks and captures.';
-  if (best?.san.includes('+')) return 'Start with a check.';
-  if (best?.san.includes('x')) return 'Look at the captures.';
-  if (m.facts.some((x) => x.kind === 'mate_allowed')) return 'Before anything else, look at your king: what checks does your opponent have?';
-  if (m.facts.some((x) => x.kind === 'material_lost')) return 'Some natural moves here lose material. Check what your opponent can capture after your move.';
-  return 'No tactic here: look for the move that improves your worst-placed piece or your king.';
+  if (pattern) return t('hint.lookFor', { motif: t(`motif.${pattern.kind}`) });
+  if (f?.kind === 'missed_material') return f.motif === 'free_capture' ? t('hint.free') : t('hint.forcing');
+  if (best?.san.includes('+')) return t('hint.check');
+  if (best?.san.includes('x')) return t('hint.captures');
+  if (m.facts.some((x) => x.kind === 'mate_allowed')) return t('hint.king');
+  if (m.facts.some((x) => x.kind === 'material_lost')) return t('hint.natural');
+  return t('hint.quiet');
 }
 
 export function hintsFor(m: MoveReview): Hint[] {
@@ -35,11 +33,10 @@ export function hintsFor(m: MoveReview): Hint[] {
   const from = best.uci.slice(0, 2);
   const to = best.uci.slice(2, 4);
   const piece = positionFromFen(best.fenBefore).board.get(squareIndex(from));
-  const name = piece ? ROLE_NAMES[piece.role] : 'piece';
   return [
     { text: familyHint(m) },
-    { text: `Move your ${name} on ${from}.`, circle: from },
-    { text: `It goes to ${to}.`, arrow: { from, to } },
+    { text: piece ? t('hint.moveYour', { piece: t(`piece.your.${piece.role}`, { square: from }) }) : t('hint.movePiece', { square: from }), circle: from },
+    { text: t('hint.goesTo', { square: to }), arrow: { from, to } },
   ];
 }
 
@@ -49,31 +46,29 @@ export function threatHintsFor(m: MoveReview): Hint[] {
   const reply = fact && 'line' in fact ? fact.line[0] : undefined;
   if (!fact || !reply) return [];
   let family: string;
-  if (fact.kind === 'mate_allowed') family = `There is a forced checkmate in ${fact.mateIn}.`;
+  if (fact.kind === 'mate_allowed') family = t('hint.threat.mateIn', { n: fact.mateIn });
   else {
     switch (fact.motif) {
       case 'fork':
-        family = 'Look for a fork.';
-        break;
       case 'skewer':
-        family = 'Look for a skewer.';
+        family = t('hint.lookFor', { motif: t(`motif.${fact.motif}`) });
         break;
       case 'discovered_attack':
       case 'double_check':
-        family = 'Look for a discovered attack.';
+        family = t('hint.lookFor', { motif: t('motif.discovered_attack') });
         break;
       case 'pin':
-        family = 'One of the pieces cannot move: it is pinned.';
+        family = t('hint.threat.pin');
         break;
       case 'moved_piece_unsafe':
-        family = 'The piece that just moved is not safe.';
+        family = t('hint.threat.unsafe');
         break;
       case 'piece_left_hanging':
       case 'removed_defender':
-        family = 'Something is no longer defended.';
+        family = t('hint.threat.undefended');
         break;
       default:
-        family = 'Look at checks and captures first.';
+        family = t('hint.threat.forcing');
     }
   }
   const from = reply.uci.slice(0, 2);
@@ -81,7 +76,7 @@ export function threatHintsFor(m: MoveReview): Hint[] {
   const piece = positionFromFen(reply.fenBefore).board.get(squareIndex(from));
   return [
     { text: family },
-    { text: `Use the ${piece ? ROLE_NAMES[piece.role] : 'piece'} on ${from}.`, circle: from },
-    { text: `It goes to ${to}.`, arrow: { from, to } },
+    { text: piece ? t('hint.use', { piece: t(`piece.the.${piece.role}`, { square: from }) }) : t('hint.usePiece', { square: from }), circle: from },
+    { text: t('hint.goesTo', { square: to }), arrow: { from, to } },
   ];
 }

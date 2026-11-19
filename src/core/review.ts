@@ -12,6 +12,7 @@ import { isBookPosition, openingAt, type OpeningBook } from './openings';
 import { phasesOf, type Phase } from './phase';
 import type { RemoteEvaluator } from './remote';
 import { openingSentence, summarise } from './summary';
+import { getLocale, t, type Locale } from '../i18n';
 
 export interface AnalysisSettings {
   depth: number;
@@ -32,6 +33,8 @@ export interface MoveReview {
   bestLine: SanMove[];
   facts: Fact[];
   explanation: Explanation;
+  /** The opening name quoted by the explanation of a book move. */
+  bookName?: string;
   isKeyMoment: boolean;
   /**
    * The tactic the mover had before this move (as named in the progress
@@ -64,6 +67,8 @@ export interface GameReview {
   accuracy: GameAccuracy;
   accuracyByPhase: Partial<Record<Phase, GameAccuracy>>;
   opening?: { eco: string; name: string; lastBookPly: number };
+  /** Language of the texts (explanations, summary); English when absent. */
+  locale?: Locale;
   /** A few sentences per side, and one about the opening, from summary.ts. */
   summary: Record<Color, string[]> & { opening?: string };
   createdAt: number;
@@ -207,6 +212,7 @@ export function buildReview(
       ? detectFacts({ uci: m.uci, color: m.color, fenBefore: m.fenBefore, fenAfter: m.fenAfter, before, after, ply: m.ply })
       : [];
     const label = moveNumberLabel(m.ply);
+    const bookName = assessment.classification === 'book' ? opening?.name : undefined;
     const explanation = explainMove({
       san: m.san,
       uci: m.uci,
@@ -217,7 +223,7 @@ export function buildReview(
       assessment,
       facts,
       bestLine,
-      ...(opening ? { openingName: opening.name } : {}),
+      ...(bookName ? { openingName: bookName } : {}),
     });
     const review: MoveReview = {
       ply: m.ply,
@@ -233,6 +239,7 @@ export function buildReview(
       isKeyMoment: false,
       timeTrouble: false,
     };
+    if (bookName) review.bookName = bookName;
     const c = assessment.classification;
     if (c !== 'book' && c !== 'forced') review.opportunity = tacticalOpportunity({ color: m.color, bestLine }, before) ?? null;
     if (isError) {
@@ -244,7 +251,7 @@ export function buildReview(
     if (clock) {
       Object.assign(review, clock);
       if (clock.timeTrouble && isError && clock.clockMs !== undefined) {
-        explanation.details.push(`You played it with ${formatClock(clock.clockMs)} left on the clock.`);
+        explanation.details.push(t('explain.clock', { clock: formatClock(clock.clockMs) }));
       }
     }
     moves.push(review);
@@ -285,11 +292,54 @@ export function buildReview(
     createdAt: Date.now(),
   };
   if (opening) review.opening = opening;
+  review.locale = getLocale();
+  writeSummary(review, lastBook);
+  return review;
+}
+
+function writeSummary(review: GameReview, lastBook: MoveReview | undefined): void {
   const lastBookLabel = lastBook ? `${lastBook.label} ${lastBook.san}` : undefined;
   review.summary = { white: summarise(review, 'white'), black: summarise(review, 'black') };
   const openingLine = openingSentence(review, lastBookLabel);
   if (openingLine) review.summary.opening = openingLine;
-  return review;
+}
+
+/** The move with its explanation written again in the current language (from its stored facts). */
+export function localizeMove(m: MoveReview, gm: { ply: number; fenBefore: string; fenAfter: string } | undefined): MoveReview {
+  if (!gm || gm.ply !== m.ply) return m;
+  // Older reviews did not store the opening name of book moves: it is in the stored sentence.
+  const bookName = m.bookName ?? (m.assessment.classification === 'book' ? /\((.+)\)\.$/.exec(m.explanation.summary)?.[1] : undefined);
+  const explanation = explainMove({
+    san: m.san,
+    uci: m.uci,
+    moveLabel: m.label,
+    color: m.color,
+    fenBefore: gm.fenBefore,
+    fenAfter: gm.fenAfter,
+    assessment: m.assessment,
+    facts: m.facts,
+    bestLine: m.bestLine,
+    ...(bookName ? { openingName: bookName } : {}),
+  });
+  if (m.timeTrouble && ERROR_CLASSES.has(m.assessment.classification) && m.clockMs !== undefined) {
+    explanation.details.push(t('explain.clock', { clock: formatClock(m.clockMs) }));
+  }
+  return { ...m, explanation };
+}
+
+/**
+ * The review with its texts (explanations, summary) written again in the
+ * current language: they are stored in the language of the analysis. Only
+ * templates run, from the stored facts; nothing is evaluated again.
+ */
+export function localizeReview(review: GameReview, game: Game): GameReview {
+  const locale = getLocale();
+  if ((review.locale ?? 'en') === locale) return review;
+  const moves = review.moves.map((m, i) => localizeMove(m, game.moves[i]));
+  const out: GameReview = { ...review, moves, locale };
+  const lastBook = review.opening ? moves.find((m) => m.ply === review.opening!.lastBookPly) : undefined;
+  writeSummary(out, lastBook);
+  return out;
 }
 
 /** "1:05", "0:08.4" */

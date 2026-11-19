@@ -4,6 +4,8 @@ import type { Color } from '../core/eval';
 import type { Arrow } from '../core/explain';
 import { Board } from './Board';
 import { San } from './San';
+import { t } from '../i18n';
+import { sideLower } from './names';
 
 /** The opening trainer: your repertoire, from your own games. */
 export function OpeningsView() {
@@ -12,7 +14,7 @@ export function OpeningsView() {
   useEffect(() => {
     if (!openings) void openOpenings();
   }, [openings, openOpenings]);
-  if (!openings) return <p className="muted">Loading…</p>;
+  if (!openings) return <p className="muted">{t('common.loading')}</p>;
   if (openings.session) return <Session state={openings} />;
   return <Start state={openings} />;
 }
@@ -22,29 +24,26 @@ function Start({ state }: { state: OpeningsState }) {
   const sides = (['white', 'black'] as const).filter((c) => state.games[c] > 0);
   return (
     <div className="card narrow">
-      <h1>Your openings</h1>
-      <p>
-        The app plays the replies your opponents actually chose; you play the move you usually play. When your usual move was
-        judged an error, the better move is the one to learn. Positions you get wrong come back more often.
-      </p>
+      <h1>{t('openings.title')}</h1>
+      <p>{t('openings.intro')}</p>
       {sides.length === 0 && (
-        <p className="muted">No game of yours yet. Set your username in Settings and review a few games: the trainer is built from them.</p>
+        <p className="muted">{t('openings.none')}</p>
       )}
       <div className="opening-sides">
         {sides.map((c) => (
           <section key={c} className="mode-card">
-            <p className="mode-kicker">As {c}</p>
+            <p className="mode-kicker">{t('openings.as', { side: sideLower(c) })}</p>
             <h2>{state.coverage[c].known} / {state.coverage[c].positions}</h2>
             <p className="muted small">
-              positions known · from {state.games[c]} game{state.games[c] > 1 ? 's' : ''}
+              {t('openings.known', { count: state.games[c] })}
             </p>
             <button className="primary" onClick={() => void startOpeningLine(c)}>
-              Train as {c}
+              {t('openings.trainAs', { side: sideLower(c) })}
             </button>
           </section>
         ))}
       </div>
-      <button className="link" onClick={() => setView('training')}>Back to training</button>
+      <button className="link" onClick={() => setView('training')}>{t('common.backToTraining')}</button>
     </div>
   );
 }
@@ -75,50 +74,49 @@ function Session({ state }: { state: OpeningsState }) {
     <div className="training">
       <div className="training-board">
         <p className="muted small">
-          As {s.color} · {s.right} right, {s.wrong} wrong
+          {t('openings.as', { side: sideLower(s.color) })} · {t('openings.score', { right: s.right, wrong: s.wrong })}
         </p>
         <Board fen={s.fen} orientation={s.color} {...(last ? { lastMove: last.uci } : {})} arrows={arrows} {...(s.status === 'your-move' ? { onMove } : {})} />
       </div>
       <aside className="training-side">
         <section className="coach" aria-live="polite">
-          <p className="coach-kicker">{s.against ? `Against ${s.against}` : 'Your openings'}</p>
-          <p className="opening-line">{s.line.length ? lineText(s.line, s.color) : <span className="muted">Starting position</span>}</p>
+          <p className="coach-kicker">{s.against ? t('openings.against', { name: s.against }) : t('openings.title')}</p>
+          <p className="opening-line">{s.line.length ? lineText(s.line, s.color) : <span className="muted">{t('openings.start')}</span>}</p>
           {s.status === 'your-move' && (
             <>
-              {s.last?.right && <p className="coach-summary verdict-good">Right: {s.last.san}.</p>}
-              <h2 className="coach-title">Your move: what do you play here?</h2>
+              {s.last?.right && <p className="coach-summary verdict-good">{t('woodpecker.right', { san: s.last.san })}</p>}
+              <h2 className="coach-title">{t('openings.question')}</h2>
             </>
           )}
           {s.status === 'wrong' && s.expected && (
             <>
               <p className="coach-summary verdict-bad">
-                {s.last?.san} is not your repertoire move. Play {s.expected.san}.
+                {t('openings.wrong', { san: s.last?.san ?? '', expected: s.expected.san })}
               </p>
               {s.expected.usualError && (
                 <p className="coach-detail">
-                  You usually play {s.expected.usualError} here, and it was judged an error in your games: {s.expected.san} is the better
-                  move to learn.
+                  {t('openings.usualError', { usual: s.expected.usualError, better: s.expected.san })}
                 </p>
               )}
             </>
           )}
           {s.status === 'end' && (
             <p className="coach-summary">
-              {s.endReason} {s.right} right, {s.wrong} wrong.
+              {s.endReason} {t('openings.score', { right: s.right, wrong: s.wrong })}.
             </p>
           )}
           <div className="coach-actions">
             {s.status === 'wrong' && (
               <button className="primary" onClick={openingContinue}>
-                Continue with {s.expected?.san}
+                {t('openings.continue', { san: s.expected?.san ?? '' })}
               </button>
             )}
             {s.status === 'end' && (
               <button className="primary" onClick={() => void startOpeningLine(s.color)}>
-                Another line
+                {t('openings.another')}
               </button>
             )}
-            <button onClick={leaveOpening}>{s.status === 'end' ? 'Done' : 'Stop'}</button>
+            <button onClick={leaveOpening}>{s.status === 'end' ? t('openings.done') : t('common.stop')}</button>
           </div>
         </section>
       </aside>
